@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suite name="Suite-1" parallel="false">
+    <test name="AutomationTest" parallel="classes" thread-count="1">
+        <!-- Added browser parameter -->
+        <parameter name="browser" value="chrome"/>
+        <classes>
+            <class name="testCase.LoginTest" />
+            <class name="testCase.AdvancedTestCase" />
+            <class name="testCase.CartTest" />
+        </classes>
+    </test>
+</suite>
