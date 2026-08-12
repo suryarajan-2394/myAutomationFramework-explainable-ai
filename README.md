@@ -147,4 +147,4 @@ Use RegressionSuiteReport.java and integration-snippets/RegressionSuite-Consolid
 
 The suite collector is safe for parallel TestNG runs: each test has an isolated thread-local collection; completed test summaries enter a concurrent suite queue. The executive page gives portfolio-level pass/recovered/blocked metrics and every test can be expanded to show its action timeline, explanation, failed/replaced locator, reliability percentage, and business update.
 
-The working four-test example is demo-output/regression-suite-executive-report.html. The same layout scales to 50-100 tests; for very large suites, leaders read the KPI and portfolio sections first while engineering expands only the relevant test evidence.
+The working four-test example is demo-output/regression-suite-executive-report.html. It now includes an executive visual summary: an outcome donut chart, Extent-style step-quality bars, and a self-healing effectiveness bar. The same layout scales to 50-100 tests; for very large suites, leaders read the KPI and visual summary first while engineering expands only the relevant test evidence.
