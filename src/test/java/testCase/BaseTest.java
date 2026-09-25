@@ -2,6 +2,7 @@ package testCase;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -30,6 +31,8 @@ import pages.HomePage;
 import pages.LoginPage;
 import util.TestData;
 import util.utility;
+import support.explainable.ExplainableAiAgent;
+import support.explainable.ExplainableAiIntegration;
 
 public class BaseTest {
 
@@ -48,7 +51,7 @@ public class BaseTest {
 	@BeforeSuite
 	public void startReport() throws IOException {
 		String currDir = System.getProperty("user.dir");
-		testData = new TestData(currDir + "\\TestData\\testData.xlsx");
+		testData = new TestData(Path.of(currDir, "TestData", "testData.xlsx").toString());
 		String reportFolderPath = currDir + "//AutomationReports//TestAutomationReport.html";
 		extentSparkReporter = new ExtentSparkReporter(reportFolderPath);
 		extentReports = new ExtentReports();
@@ -99,6 +102,24 @@ public class BaseTest {
 		homePage = new HomePage(driver);
 		cartPage = new CartPage(driver);
 		extentTestThread.set(extentReports.createTest(method.getName()));
+		ExplainableAiIntegration.start(method.getName());
+	}
+
+	@FunctionalInterface
+	protected interface ExplainedAction { void run() throws Throwable; }
+
+	protected void explainedStep(String action, String expected, ExplainedAction work) throws Throwable {
+		long started = System.nanoTime();
+		try {
+			work.run();
+			ExplainableAiIntegration.record(action, expected, "Action returned without exception; check explicit assertions for expected state",
+					ExplainableAiAgent.Outcome.PASS, (System.nanoTime() - started) / 1_000_000);
+		} catch (Throwable failure) {
+			ExplainableAiIntegration.record(action, expected,
+					failure.getClass().getSimpleName() + ": " + failure.getMessage(),
+					ExplainableAiAgent.Outcome.FAIL, (System.nanoTime() - started) / 1_000_000);
+			throw failure;
+		}
 	}
 
 	@AfterMethod
@@ -115,7 +136,15 @@ public class BaseTest {
 			test.log(Status.SKIP, "Overall Test Status: SKIPPED");
 			test.addScreenCaptureFromPath(utils.getScreenshotNew(driver));
 		}
-		driver.quit();
+		try {
+			ExplainableAiAgent.Report report = ExplainableAiIntegration.finish(
+					result.getStatus() == ITestResult.SUCCESS, result.getStatus() == ITestResult.SKIP,
+					result.getThrowable(), Path.of("AutomationReports", "explainable"));
+			test.log(Status.INFO, report.explain().summary());
+		} finally {
+			driver.quit();
+			extentTestThread.remove();
+		}
 	}
 
 	@AfterSuite
