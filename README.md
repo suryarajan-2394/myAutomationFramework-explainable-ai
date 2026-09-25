@@ -41,7 +41,7 @@ No pom.xml change is needed.
 
 ## BaseTest wiring (already applied)
 
-Add these imports:
+The relevant imports are:
 
 ~~~java
 import java.nio.file.Path;
@@ -65,7 +65,7 @@ protected void explainedStep(String action, String expected, ExplainedAction wor
     long started = System.nanoTime();
     try {
         work.run();
-        ExplainableAiIntegration.record(action, expected, "Expectation met",
+    ExplainableAiIntegration.record(action, expected, "Action returned without exception; check explicit assertions for expected state",
             ExplainableAiAgent.Outcome.PASS, (System.nanoTime() - started) / 1_000_000);
     } catch (Throwable failure) {
         ExplainableAiIntegration.record(action, expected,
@@ -76,7 +76,7 @@ protected void explainedStep(String action, String expected, ExplainedAction wor
 }
 ~~~
 
-`@AfterMethod` finishes the report before `driver.quit()`:
+`@AfterMethod` finishes the report before `driver.quit()` (the implementation also logs the summary to Extent):
 
 ~~~java
 boolean passed = result.getStatus() == ITestResult.SUCCESS;
@@ -113,7 +113,7 @@ explainedStep(
 extentTestThread.get().log(Status.PASS, "Product in Cart validated successfully");
 ~~~
 
-Use this pattern for clickOnCart(), logout, and the existing login/error-validation tests. Because explainedStep rethrows the original failure, current TestNG/Extent status and screenshots still work.
+The cart flow also covers `clickOnCart()` and logout. Extend the same pattern to the login/error-validation tests. Because `explainedStep` rethrows the original failure, current TestNG/Extent status and screenshots still work.
 
 ## Run the demo
 
