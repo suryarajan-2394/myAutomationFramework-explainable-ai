@@ -79,10 +79,10 @@ public final class ExplainableAiAgent {
             if (outcome == Outcome.PASS && failed == null) {
                 return new Explanation(
                     "PASS: " + testName + " completed " + steps.size() + " recorded UI step(s).",
-                    "Observed evidence matches every recorded expectation.",
-                    "No action is required; retain the business-level event trail for future regressions.",
+                    "No recorded step failed; this does not independently verify the expected application state.",
+                    "Review explicit assertions and retain the event trail for future regressions.",
                     false,
-                    "The customer journey worked as expected: customers can log in, add an item, and see it in their cart.");
+                    "The recorded test steps completed without an observed failure. Review assertions for the business outcome.");
             }
             String action = failed == null ? "test execution" : failed.action();
             String evidence = failed == null ? failureMessage : failed.observed();

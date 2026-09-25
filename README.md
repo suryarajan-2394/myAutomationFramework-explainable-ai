@@ -1,5 +1,20 @@
 # Explainable AI agent for myAutomationFramework
 
+## Current implementation and research direction
+
+`BaseTest` now starts and finishes an evidence report for each TestNG method, and `CartTest` records its five business actions with `explainedStep`. Reports are written to `AutomationReports/explainable` and linked by a summary in Extent. The existing locator recovery component is available as an opt-in API; the page objects do **not** yet use it. Test class generation, LIME, ViT, and Healenium integration are proposed research work, not implemented features.
+
+This is a deterministic, rule-based baseline. A completed action is recorded as an action, not proof that its expected state was asserted. Add explicit assertions at the page-object or test level and attach evidence before interpreting a passing step as a verified business outcome.
+
+### Proposed build order
+
+1. **Reliable baseline:** add state assertions for login, cart badge, cart item and logout; include screenshots or DOM snippets on failure; run a stable e-commerce benchmark in CI. Record test, element, page, and build IDs in machine-readable reports.
+2. **Guarded locator recovery:** route selected page-object locators through `SelfHealingLocatorAgent`; restrict candidates by page and element role, reject ambiguous matches, and validate the intended post-action state. Persist outcomes across CI runs and require review before promoting a replacement. Compare against plain Selenium and Healenium on controlled DOM changes; measure successful recovery, wrong-target/false-heal rate, and latency.
+3. **Explainable ranking:** log candidate features, rejected alternatives, model version, and thresholds. Evaluate LIME on a trained locator-ranking model only if local surrogate fidelity is measured; do not label the current rule score as LIME. Consider ViT for visually grounded recovery where DOM signals fail, with screenshot redaction and an ablation against DOM-only ranking.
+4. **Test class generator:** generate a TestNG/page-object draft from an approved scenario schema, compile it, run it in a sandbox against a fixture site, and require human review before committing. Measure compilation, assertion validity, coverage, and maintenance cost against handwritten tests.
+
+For a PhD evaluation, keep train/test site families and change types separate, retain a frozen baseline, report confidence intervals, and treat a wrong-target click as a failure even when the test later passes. Keep AI providers optional and avoid sending credentials or customer data to a model.
+
 This add-on makes each test **auditable**, rather than merely pass/fail. It is built for the repository's Selenium + TestNG + ExtentReports setup and does not require an API key or an external service.
 
 ## What it records
@@ -14,9 +29,9 @@ For each meaningful UI step, the agent stores:
 
 At test completion, it writes an HTML report for humans and JSON for CI/analytics. The report labels the output as either an observed fact or a rule-based inference, so it does not present a guess as test evidence.
 
-## Add the files
+## Integration in this repository
 
-Copy the three Java files in src/test/java/support/explainable/ into the same path in the repository:
+The support classes are already in `src/test/java/support/explainable/`. The core files are:
 
 - ExplainableAiAgent.java — evidence model, explanation rules, HTML/JSON reporter
 - ExplainableAiIntegration.java — thread-safe TestNG bridge
@@ -24,9 +39,9 @@ Copy the three Java files in src/test/java/support/explainable/ into the same pa
 
 No pom.xml change is needed.
 
-## Wire into BaseTest
+## BaseTest wiring (already applied)
 
-Add these imports:
+The relevant imports are:
 
 ~~~java
 import java.nio.file.Path;
@@ -34,13 +49,13 @@ import support.explainable.ExplainableAiAgent;
 import support.explainable.ExplainableAiIntegration;
 ~~~
 
-At the end of the existing @BeforeMethod setup(..., Method method), immediately after the framework creates its Extent test, add:
+`@BeforeMethod` starts the report immediately after creating the Extent test:
 
 ~~~java
 ExplainableAiIntegration.start(method.getName());
 ~~~
 
-Add this helper to BaseTest:
+`BaseTest` includes this helper:
 
 ~~~java
 @FunctionalInterface
@@ -50,7 +65,7 @@ protected void explainedStep(String action, String expected, ExplainedAction wor
     long started = System.nanoTime();
     try {
         work.run();
-        ExplainableAiIntegration.record(action, expected, "Expectation met",
+    ExplainableAiIntegration.record(action, expected, "Action returned without exception; check explicit assertions for expected state",
             ExplainableAiAgent.Outcome.PASS, (System.nanoTime() - started) / 1_000_000);
     } catch (Throwable failure) {
         ExplainableAiIntegration.record(action, expected,
@@ -61,7 +76,7 @@ protected void explainedStep(String action, String expected, ExplainedAction wor
 }
 ~~~
 
-At the start of the existing @AfterMethod getResult(ITestResult result), after you determine its TestNG status but before driver.quit(), add:
+`@AfterMethod` finishes the report before `driver.quit()` (the implementation also logs the summary to Extent):
 
 ~~~java
 boolean passed = result.getStatus() == ITestResult.SUCCESS;
@@ -72,9 +87,9 @@ ExplainableAiIntegration.finish(passed, skipped, result.getThrowable(), explaina
 
 The existing Extent report and screenshot behavior remains unchanged. This agent generates an additional report per test in AutomationReports/explainable.
 
-## Instrument the existing CartTest
+## Instrumented CartTest
 
-Replace a direct page-object action with explainedStep; retain the existing Extent log immediately after it:
+The cart flow now wraps its page-object actions with `explainedStep` and retains the Extent logs. This is an example of the pattern:
 
 ~~~java
 explainedStep(
@@ -98,7 +113,7 @@ explainedStep(
 extentTestThread.get().log(Status.PASS, "Product in Cart validated successfully");
 ~~~
 
-Use this pattern for clickOnCart(), logout, and the existing login/error-validation tests. Because explainedStep rethrows the original failure, current TestNG/Extent status and screenshots still work.
+The cart flow also covers `clickOnCart()` and logout. Extend the same pattern to the login/error-validation tests. Because `explainedStep` rethrows the original failure, current TestNG/Extent status and screenshots still work.
 
 ## Run the demo
 
