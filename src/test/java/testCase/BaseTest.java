@@ -81,6 +81,7 @@ public class BaseTest {
 			Map<String, Object> prefs = new HashMap<>();
 			prefs.put("credentials_enable_service", false);
 			prefs.put("profile.password_manager_enabled", false);
+			prefs.put("profile.password_manager_leak_detection", false);
 
 			options.setExperimentalOption("prefs", prefs);
 			options.addArguments("--disable-save-password-bubble");

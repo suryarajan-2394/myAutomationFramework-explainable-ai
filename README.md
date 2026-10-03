@@ -16,6 +16,8 @@ Set `-Dframework.healing.cart.enabled=true` to enable recovery for `HomePage.cli
 
 The static pages in `src/test/resources/locator-fixture/` cover the original locator, a changed class, and duplicate fallback matches. `CartLocatorFixtureTest` checks that only the unique fallback reaches the cart and that duplicate candidates do not trigger a click. Run it on a machine with Chrome and ChromeDriver using `mvn -Dtest=CartLocatorFixtureTest test`. This is an initial controlled sample, not a broad benchmark or proof of correct healing on other sites. The existing agent's reliability counter measures visible/enabled probes; it does not establish post-action correctness or persist between runs. Record both the cart-page assertion and any wrong-target result when evaluating recovery.
 
+The Chrome test profile disables password leak warnings alongside the existing password-manager settings so browser-owned prompts do not cover the inventory controls during the demo. A missing cart badge still fails the state assertion; use the captured screenshot and report to identify whether a browser prompt, failed product click, or changed page caused it.
+
 ### Proposed build order
 
 1. **Reliable baseline:** add state assertions for login, cart badge, cart item and logout; include screenshots or DOM snippets on failure; run a stable e-commerce benchmark in CI. Record test, element, page, and build IDs in machine-readable reports.
