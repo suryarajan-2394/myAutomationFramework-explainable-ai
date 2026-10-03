@@ -122,21 +122,41 @@ public class BaseTest {
 		}
 	}
 
+	/** Record execution and the independently checked business state as separate evidence. */
+	protected void explainedStep(String action, String expected, ExplainedAction work,
+			ExplainedAction verifyState) throws Throwable {
+		explainedStep(action, expected, work);
+		long started = System.nanoTime();
+		try {
+			verifyState.run();
+			ExplainableAiIntegration.record(action + " — expected state", expected,
+					"Explicit state assertion passed", ExplainableAiAgent.Outcome.PASS,
+					(System.nanoTime() - started) / 1_000_000);
+		} catch (Throwable failure) {
+			ExplainableAiIntegration.record(action + " — expected state", expected,
+					failure.getClass().getSimpleName() + ": " + failure.getMessage(),
+					ExplainableAiAgent.Outcome.FAIL, (System.nanoTime() - started) / 1_000_000);
+			throw failure;
+		}
+	}
+
 	@AfterMethod
 	public void getResult(ITestResult result) throws IOException {
 		ExtentTest test = extentTestThread.get();
-		if (result.getStatus() == ITestResult.FAILURE) {
-			test.log(Status.FAIL, "Overall Test Status: FAILED");
-			test.log(Status.FAIL, result.getThrowable());
-			test.addScreenCaptureFromPath(utils.getScreenshotNew(driver));
-		} else if (result.getStatus() == ITestResult.SUCCESS) {
-			test.log(Status.PASS, "Overall Test Status: PASSED");
-			test.addScreenCaptureFromPath(utils.getScreenshotNew(driver));
-		} else {
-			test.log(Status.SKIP, "Overall Test Status: SKIPPED");
-			test.addScreenCaptureFromPath(utils.getScreenshotNew(driver));
-		}
 		try {
+			if (result.getStatus() == ITestResult.FAILURE) {
+				test.log(Status.FAIL, "Overall Test Status: FAILED");
+				test.log(Status.FAIL, result.getThrowable());
+			} else if (result.getStatus() == ITestResult.SUCCESS) {
+				test.log(Status.PASS, "Overall Test Status: PASSED");
+			} else {
+				test.log(Status.SKIP, "Overall Test Status: SKIPPED");
+			}
+			try {
+				test.addScreenCaptureFromPath(utils.getScreenshotNew(driver));
+			} catch (Exception screenshotFailure) {
+				test.log(Status.WARNING, "Screenshot unavailable: " + screenshotFailure.getMessage());
+			}
 			ExplainableAiAgent.Report report = ExplainableAiIntegration.finish(
 					result.getStatus() == ITestResult.SUCCESS, result.getStatus() == ITestResult.SKIP,
 					result.getThrowable(), Path.of("AutomationReports", "explainable"));

@@ -2,9 +2,13 @@
 
 ## Current implementation and research direction
 
-`BaseTest` now starts and finishes an evidence report for each TestNG method, and `CartTest` records its five business actions with `explainedStep`. Reports are written to `AutomationReports/explainable` and linked by a summary in Extent. The existing locator recovery component is available as an opt-in API; the page objects do **not** yet use it. Test class generation, LIME, ViT, and Healenium integration are proposed research work, not implemented features.
+`BaseTest` starts and finishes an evidence report for each TestNG method. `CartTest` records five business actions; login, add-to-cart, open-cart and logout now have separate explicit state checks. Its cart-product validation already asserts the selected product in `CartPage`. Reports are written to `AutomationReports/explainable` and summarized in Extent. A screenshot failure is logged as a warning so the evidence report can still be written. The existing locator recovery component is available as an opt-in API; the page objects do **not** yet use it. Test class generation, LIME, ViT, and Healenium integration are proposed research work, not implemented features.
 
-This is a deterministic, rule-based baseline. A completed action is recorded as an action, not proof that its expected state was asserted. Add explicit assertions at the page-object or test level and attach evidence before interpreting a passing step as a verified business outcome.
+This is a deterministic, rule-based baseline. A completed action is recorded separately from an explicit state assertion. Other tests still need assertions before their successful actions can be interpreted as verified business outcomes.
+
+### Verified cart increment
+
+`explainedStep(action, expected, work, verifyState)` records an action result, then runs and records the state assertion independently. An assertion failure is rethrown to TestNG. The cart flow checks the inventory URL, one-item badge, cart URL, product name, and visible login button after logout. These checks target the repository's current SauceDemo journey; they require a working browser and configured test data. There is no frozen local fixture or CI mutation dataset yet. Next, introduce a controlled fixture and evaluate correct-target recovery and false heals before enabling locator recovery in a page object.
 
 ### Proposed build order
 
@@ -41,7 +45,7 @@ No pom.xml change is needed.
 
 ## BaseTest wiring (already applied)
 
-The relevant imports are:
+Add these imports:
 
 ~~~java
 import java.nio.file.Path;
@@ -65,7 +69,7 @@ protected void explainedStep(String action, String expected, ExplainedAction wor
     long started = System.nanoTime();
     try {
         work.run();
-    ExplainableAiIntegration.record(action, expected, "Action returned without exception; check explicit assertions for expected state",
+        ExplainableAiIntegration.record(action, expected, "Expectation met",
             ExplainableAiAgent.Outcome.PASS, (System.nanoTime() - started) / 1_000_000);
     } catch (Throwable failure) {
         ExplainableAiIntegration.record(action, expected,
@@ -76,7 +80,7 @@ protected void explainedStep(String action, String expected, ExplainedAction wor
 }
 ~~~
 
-`@AfterMethod` finishes the report before `driver.quit()` (the implementation also logs the summary to Extent):
+`@AfterMethod` finishes the report before `driver.quit()`:
 
 ~~~java
 boolean passed = result.getStatus() == ITestResult.SUCCESS;
@@ -113,7 +117,7 @@ explainedStep(
 extentTestThread.get().log(Status.PASS, "Product in Cart validated successfully");
 ~~~
 
-The cart flow also covers `clickOnCart()` and logout. Extend the same pattern to the login/error-validation tests. Because `explainedStep` rethrows the original failure, current TestNG/Extent status and screenshots still work.
+Use this pattern for clickOnCart(), logout, and the existing login/error-validation tests. Because explainedStep rethrows the original failure, current TestNG/Extent status and screenshots still work.
 
 ## Run the demo
 
