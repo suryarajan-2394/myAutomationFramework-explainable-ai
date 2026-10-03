@@ -118,6 +118,17 @@ public final class SelfHealingLocatorAgent {
      */
     public ResolvedElement findWithRecovery(WebDriver driver, String elementName, Locator original,
                                              List<Candidate> candidates) {
+        return findWithRecovery(driver, elementName, original, candidates, true);
+    }
+
+    /** Restrict recovery to reviewed candidates when discovery would be unsafe for this action. */
+    public ResolvedElement findWithApprovedRecovery(WebDriver driver, String elementName, Locator original,
+                                                     List<Candidate> candidates) {
+        return findWithRecovery(driver, elementName, original, candidates, false);
+    }
+
+    private ResolvedElement findWithRecovery(WebDriver driver, String elementName, Locator original,
+                                             List<Candidate> candidates, boolean discover) {
         Locator primary = promotedOverrides.getOrDefault(elementName, original);
         try {
             WebElement element = driver.findElement(toBy(primary));
@@ -126,6 +137,8 @@ public final class SelfHealingLocatorAgent {
         } catch (WebDriverException failure) {
             LocatorProbe seleniumProbe = locator -> {
                 List<WebElement> matches = driver.findElements(toBy(locator));
+                if (matches.size() != 1) return new ProbeResult(false, false,
+                        "Candidate must resolve to exactly one element; found " + matches.size());
                 for (WebElement match : matches) {
                     try {
                         if (match.isDisplayed() && match.isEnabled())
@@ -135,7 +148,7 @@ public final class SelfHealingLocatorAgent {
                 return new ProbeResult(false, false, "Candidate not visible/enabled on the current page.");
             };
             List<Candidate> allCandidates = new ArrayList<>(candidates);
-            allCandidates.addAll(discoverCandidates(driver, elementName));
+            if (discover) allCandidates.addAll(discoverCandidates(driver, elementName));
             HealingDecision decision = recover(elementName, primary, rootMessage(failure), allCandidates, seleniumProbe);
             if (!decision.appliedThisRun()) throw failure;
             return new ResolvedElement(driver.findElement(toBy(decision.replacementLocator())), decision);

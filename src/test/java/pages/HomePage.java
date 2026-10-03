@@ -7,8 +7,16 @@ import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
+import support.explainable.ExplainableAiAgent;
+import support.explainable.ExplainableAiIntegration;
+import support.explainable.SelfHealingLocatorAgent;
 
 public class HomePage extends BasePageClass{
+	private static final SelfHealingLocatorAgent.Locator CART_ORIGINAL =
+			new SelfHealingLocatorAgent.Locator(SelfHealingLocatorAgent.Strategy.CSS, "a.shopping_cart_link");
+	private static final SelfHealingLocatorAgent.Locator CART_APPROVED =
+			new SelfHealingLocatorAgent.Locator(SelfHealingLocatorAgent.Strategy.CSS, "a[data-test='shopping-cart-link']");
+	private final SelfHealingLocatorAgent cartRecovery = new SelfHealingLocatorAgent();
 
 	public HomePage(WebDriver driver) {
 		super(driver);
@@ -37,7 +45,22 @@ public class HomePage extends BasePageClass{
 	}
 	
 	public void clickOnCart() {
-		cartIcon.click();
+		if (Boolean.getBoolean("framework.healing.cart.enabled")) {
+			SelfHealingLocatorAgent.ResolvedElement resolved = cartRecovery.findWithApprovedRecovery(
+					driver, "Cart link", CART_ORIGINAL,
+					List.of(new SelfHealingLocatorAgent.Candidate(CART_APPROVED, 0.90,
+							List.of("reviewed-data-test", "cart-link-role"))));
+			if (resolved.decision() != null) {
+				ExplainableAiIntegration.record("Cart locator recovery", "Unique, visible and enabled cart link",
+						"Candidate selected (navigation still requires verification): "
+								+ resolved.decision().failedLocator().display() + " -> "
+								+ resolved.decision().replacementLocator().display(),
+						ExplainableAiAgent.Outcome.PASS, 0);
+			}
+			resolved.element().click();
+		} else {
+			cartIcon.click();
+		}
 		driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
 	}
 	
