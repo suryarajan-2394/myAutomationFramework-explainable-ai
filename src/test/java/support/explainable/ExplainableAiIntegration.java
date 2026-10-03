@@ -2,6 +2,7 @@ package support.explainable;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import util.utility;
 
 /** Thread-safe bridge for BaseTest; it works with parallel TestNG execution. */
 public final class ExplainableAiIntegration {
@@ -18,12 +19,17 @@ public final class ExplainableAiIntegration {
     public static ExplainableAiAgent.Report finish(boolean passed, boolean skipped,
                                                     Throwable failure, Path reportDirectory)
             throws IOException {
+        return finish(passed, skipped, failure, reportDirectory, utility.timeStamp());
+    }
+
+    public static ExplainableAiAgent.Report finish(boolean passed, boolean skipped,
+                                                    Throwable failure, Path reportDirectory, String stamp)
+            throws IOException {
         ExplainableAiAgent.Outcome outcome = skipped ? ExplainableAiAgent.Outcome.SKIP
                 : passed ? ExplainableAiAgent.Outcome.PASS : ExplainableAiAgent.Outcome.FAIL;
         ExplainableAiAgent.Report report = current().complete(outcome, failure);
-        String testId = Long.toUnsignedString(System.nanoTime());
-        report.writeHtml(reportDirectory.resolve("explanation-" + testId + ".html"));
-        report.writeJson(reportDirectory.resolve("explanation-" + testId + ".json"));
+        report.writeHtml(reportDirectory.resolve("explanation-" + stamp + ".html"));
+        report.writeJson(reportDirectory.resolve("explanation-" + stamp + ".json"));
         RUN.remove();
         return report;
     }

@@ -144,6 +144,7 @@ public class BaseTest {
 	@AfterMethod
 	public void getResult(ITestResult result) throws IOException {
 		ExtentTest test = extentTestThread.get();
+		String artifactStamp = utility.timeStamp();
 		try {
 			if (result.getStatus() == ITestResult.FAILURE) {
 				test.log(Status.FAIL, "Overall Test Status: FAILED");
@@ -154,13 +155,13 @@ public class BaseTest {
 				test.log(Status.SKIP, "Overall Test Status: SKIPPED");
 			}
 			try {
-				test.addScreenCaptureFromPath(utils.getScreenshotNew(driver));
+				test.addScreenCaptureFromPath(utils.getScreenshotNew(driver, artifactStamp));
 			} catch (Exception screenshotFailure) {
 				test.log(Status.WARNING, "Screenshot unavailable: " + screenshotFailure.getMessage());
 			}
 			ExplainableAiAgent.Report report = ExplainableAiIntegration.finish(
 					result.getStatus() == ITestResult.SUCCESS, result.getStatus() == ITestResult.SKIP,
-					result.getThrowable(), Path.of("AutomationReports", "explainable"));
+					result.getThrowable(), Path.of("AutomationReports", "explainable"), artifactStamp);
 			test.log(Status.INFO, report.explain().summary());
 		} finally {
 			driver.quit();

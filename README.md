@@ -4,6 +4,8 @@
 
 `BaseTest` starts and finishes an evidence report for each TestNG method. `CartTest` records five business actions; login, add-to-cart, open-cart and logout have separate explicit state checks. Its cart-product validation already asserts the selected product in `CartPage`. Reports are written to `AutomationReports/explainable` and summarized in Extent. A screenshot failure is logged as a warning so the evidence report can still be written. `HomePage` supports opt-in recovery for the cart link only. Test class generation, LIME, ViT, and Healenium integration are proposed research work, not implemented features.
 
+At test completion, the explainable HTML and JSON in `AutomationReports/explainable` and the screenshot in `AutomationReports/Screenshots` share a local timestamp, for example `explanation-03-10-2026_12-51-54.html` and `03-10-2026_12-51-54.png`. Windows forbids colons in filenames, so hours, minutes and seconds use hyphens. Parallel tests completed within one second receive an additional `_1`, `_2`, etc. suffix to avoid overwriting files. The Extent index remains `AutomationReports/TestAutomationReport.html`.
+
 This is a deterministic, rule-based baseline. A completed action is recorded separately from an explicit state assertion. Other tests still need assertions before their successful actions can be interpreted as verified business outcomes.
 
 ### Verified cart increment

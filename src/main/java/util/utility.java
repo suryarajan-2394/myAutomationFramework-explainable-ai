@@ -5,7 +5,8 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Properties;
 
 import org.apache.commons.io.FileUtils;
@@ -15,6 +16,9 @@ import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 
 public class utility {
+	private static final DateTimeFormatter REPORT_TIME = DateTimeFormatter.ofPattern("dd-MM-uuuu_HH-mm-ss");
+	private static String previousSecond = "";
+	private static int sameSecond = 0;
 	static WebDriver driver;
 	static Properties properties;
 	static InputStream input;
@@ -44,8 +48,12 @@ public class utility {
 	}
 
 	public static String getScreenshotNew(WebDriver driver) throws IOException {
+		return getScreenshotNew(driver, timeStamp());
+	}
+
+	public static String getScreenshotNew(WebDriver driver, String stamp) throws IOException {
     // file name
-    String fileName = timeStamp() + ".png";
+    String fileName = stamp + ".png";
 
     // Base folder where Extent report resides
     String reportFolder = System.getProperty("user.dir") + File.separator + "AutomationReports";
@@ -70,9 +78,14 @@ public class utility {
 }
 
 
-	public static String timeStamp() {
-		Instant instant = Instant.now();
-		return instant.toString().replace("-", "_").replace(":", "_").replace(".", "_");
+	public static synchronized String timeStamp() {
+		String second = LocalDateTime.now().format(REPORT_TIME);
+		if (!second.equals(previousSecond)) {
+			previousSecond = second;
+			sameSecond = 0;
+		}
+		int duplicate = sameSecond++;
+		return duplicate == 0 ? second : second + "_" + duplicate;
 
 	}
 	
