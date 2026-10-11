@@ -9,7 +9,7 @@ public final class ExplainableAiIntegration {
     private static final ThreadLocal<ExplainableAiAgent.Run> RUN = new ThreadLocal<>();
     private ExplainableAiIntegration() { }
 
-    public static void start(String testName) { RUN.set(ExplainableAiAgent.begin(testName)); }
+    public static void start(String testName) { RepairTrace.clear(); RUN.set(ExplainableAiAgent.begin(testName)); }
 
     public static void record(String action, String expected, String observed,
                               ExplainableAiAgent.Outcome outcome, long elapsedMillis) {
@@ -32,8 +32,13 @@ public final class ExplainableAiIntegration {
             report.writeHtml(reportDirectory.resolve("explanation-" + stamp + ".html"));
             if (Boolean.getBoolean("framework.reporting.json.enabled"))
                 report.writeJson(reportDirectory.resolve("explanation-" + stamp + ".json"));
-        } finally { RUN.remove(); }
+        } finally { RUN.remove(); RepairTrace.clear(); }
         return report;
+    }
+
+    public static void repairEvent(String stage, String detail, String source) {
+        current();
+        RepairTrace.add(stage, detail, source);
     }
 
     private static ExplainableAiAgent.Run current() {

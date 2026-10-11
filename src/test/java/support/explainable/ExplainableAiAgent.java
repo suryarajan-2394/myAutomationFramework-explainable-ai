@@ -120,7 +120,7 @@ public final class ExplainableAiAgent {
                     html(explanation.summary()), html(explanation.stakeholderSummary()),
                     explanation.isInference() ? "Rule-based inference" : "Conclusion",
                     html(explanation.diagnosis()), html(explanation.nextAction()), rows);
-            page = page.replace("</body>", BenchmarkSummary.section(
+            page = page.replace("</body>", RepairTrace.html() + BenchmarkSummary.section(
                     file.toAbsolutePath().getParent().getParent().resolve("benchmark")) + "</body>");
             Files.writeString(file, page, StandardCharsets.UTF_8);
         }

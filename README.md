@@ -259,3 +259,26 @@ recoveries, correct outcomes on every safety fixture, and at least 100 independe
 mutations before broader rollout. These are proposed targets, not an external standard.
 Rerun the benchmark to replace previous 50% results; improved scores must come from
 correct safe recovery, never relaxed assertions or removal of difficult scenarios.
+
+### JavaScript cart fix and automatic repair history
+
+SauceDemo's cart component is an anchor with role=button and an onClick router
+handler, without href. The guard now supports this reviewed pattern only when
+data-test is shopping-cart-link, its accessible name starts with Cart, and the
+current page is inventory.html. Explicit href links still require the expected
+same-origin cart path. Source reference:
+https://github.com/saucelabs/sample-app-web/blob/main/src/components/CartButton.jsx
+
+The benchmark now includes this JavaScript navigation pattern (8 scenarios, 16
+executions). Runtime repair history records the original failure, replacement
+locator, source call-site file and line, and verified second locator attempt.
+This is a bounded locator retry within the same test, not a full test rerun or
+a source file rewrite. It avoids repeating earlier shopping actions. When no
+locator breaks, the report explicitly states no repair was required. If no
+approved safe candidate exists, the test remains failed with a blocked-repair
+reason. Missing candidates and business/assertion failures cannot be healed by
+blind retries. Cart healing remains opt-in outside the stakeholder profile;
+other page actions are not yet wired into this runtime recovery integration.
+
+Run `mvn -Pstakeholder-report test` after pulling. Inspect both the live outcome
+and benchmark evidence; a benchmark score does not override a failed live test.

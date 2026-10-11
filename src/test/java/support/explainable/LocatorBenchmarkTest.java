@@ -26,7 +26,7 @@ public class LocatorBenchmarkTest {
     @DataProvider(name = "cases")
     public Object[][] cases() {
         List<Object[]> cases = new ArrayList<>();
-        for (String file : List.of("original.html", "changed-class.html", "duplicate.html",
+        for (String file : List.of("original.html", "changed-class.html", "inventory.html", "duplicate.html",
                 "missing.html", "hidden.html", "disabled.html", "wrong-target.html")) {
             for (boolean healing : List.of(false, true)) cases.add(new Object[]{file, healing});
         }
@@ -73,7 +73,7 @@ public class LocatorBenchmarkTest {
             }
             screenshot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BASE64);
             String expected = fixture.equals("original.html") ? "ORIGINAL WORKED"
-                    : fixture.equals("changed-class.html") && healing ? "VERIFIED RECOVERY"
+                    : (fixture.equals("changed-class.html") || fixture.equals("inventory.html")) && healing ? "VERIFIED RECOVERY"
                     : "BLOCKED SAFELY";
             Assert.assertEquals(outcome, expected, "Unexpected benchmark outcome for " + fixture);
         } finally {

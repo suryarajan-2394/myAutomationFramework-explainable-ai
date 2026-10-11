@@ -17,6 +17,7 @@ public class HomePage extends BasePageClass{
 	private static final SelfHealingLocatorAgent.Locator CART_APPROVED =
 			new SelfHealingLocatorAgent.Locator(SelfHealingLocatorAgent.Strategy.CSS, "a[data-test='shopping-cart-link']");
 	private SelfHealingLocatorAgent.HealingDecision pendingCartDecision;
+    private String cartRepairSource;
 	private final SelfHealingLocatorAgent cartRecovery = new SelfHealingLocatorAgent();
 
 	public HomePage(WebDriver driver) {
@@ -48,13 +49,30 @@ public class HomePage extends BasePageClass{
 	public void clickOnCart() {
 		pendingCartDecision = null;
 		if (Boolean.getBoolean("framework.healing.cart.enabled")) {
-			SelfHealingLocatorAgent.ResolvedElement resolved = cartRecovery.findWithApprovedRecovery(
+			cartRepairSource = StackWalker.getInstance().walk(frames -> frames
+                    .filter(f -> f.getClassName().equals(HomePage.class.getName()))
+                    .map(f -> "src/test/java/pages/" + f.getFileName() + ":" + f.getLineNumber())
+                    .findFirst().orElse("src/test/java/pages/HomePage.java (line unavailable)"));
+            SelfHealingLocatorAgent.ResolvedElement resolved;
+            try {
+                resolved = cartRecovery.findWithApprovedRecovery(
 					driver, "Cart link", CART_ORIGINAL,
 					List.of(new SelfHealingLocatorAgent.Candidate(CART_APPROVED, 0.90,
 							List.of("reviewed-data-test", "cart-link-role"))),
                         element -> support.explainable.CartRecoveryPolicy.accepts(element, driver.getCurrentUrl()));
+            } catch (org.openqa.selenium.NoSuchElementException rejected) {
+                ExplainableAiIntegration.repairEvent("Attempt 1 failed; automatic repair blocked",
+                        rejected.getMessage(), cartRepairSource);
+                throw rejected;
+            }
 			pendingCartDecision = resolved.decision();
 			if (resolved.decision() != null) {
+                ExplainableAiIntegration.repairEvent("Attempt 1: original locator failed",
+                        resolved.decision().failureReason(), cartRepairSource);
+                ExplainableAiIntegration.repairEvent("Automatic runtime repair selected",
+                        resolved.decision().failedLocator().display() + " -> " + resolved.decision().replacementLocator().display()
+                        + ". Replacement passed uniqueness, availability and cart-control safety checks. "
+                        + "No Java source line was rewritten. The next click is attempt 2 at this step.", cartRepairSource);
 				ExplainableAiIntegration.record("Cart locator recovery", "Unique, visible and enabled cart link",
 						"Candidate selected (navigation still requires verification): "
 								+ resolved.decision().failedLocator().display() + " -> "
@@ -73,6 +91,8 @@ public class HomePage extends BasePageClass{
         if (pendingCartDecision == null) return;
         var verified = cartRecovery.verifyOutcome(pendingCartDecision, succeeded);
         pendingCartDecision = null;
+        ExplainableAiIntegration.repairEvent(succeeded ? "Attempt 2: passed after healing" : "Attempt 2: failed after healing",
+                verified.businessUpdate() + " This describes cart navigation, not a second complete test run.", cartRepairSource);
         ExplainableAiIntegration.record("Verify cart recovery", "Expected cart page opened",
                 verified.businessUpdate() + " " + verified.successRateLabel(),
                 succeeded ? ExplainableAiAgent.Outcome.PASS : ExplainableAiAgent.Outcome.FAIL, 0);

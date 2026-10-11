@@ -157,7 +157,8 @@ public final class SelfHealingLocatorAgent {
             if (originals.size() != 1) throw new NoSuchElementException("Original locator is missing or ambiguous.");
             WebElement element = originals.get(0);
             if (element.isDisplayed() && element.isEnabled() && safetyRule.test(element)) return new ResolvedElement(element, null);
-            throw new NoSuchElementException("Locator resolved an unavailable element: " + primary.display());
+            throw new NoSuchElementException("Original locator matched a control rejected by visibility, enabled-state or cart safety checks: " + primary.display()
+                    + "; tag=" + element.getTagName() + "; role=" + element.getAttribute("role") + "; href=" + element.getAttribute("href"));
         } catch (NoSuchElementException failure) {
             LocatorProbe seleniumProbe = locator -> {
                 List<WebElement> matches = driver.findElements(toBy(locator));
@@ -174,7 +175,8 @@ public final class SelfHealingLocatorAgent {
             List<Candidate> allCandidates = new ArrayList<>(candidates);
             if (discover) allCandidates.addAll(discoverCandidates(driver, elementName));
             HealingDecision decision = recover(elementName, primary, rootMessage(failure), allCandidates, seleniumProbe);
-            if (!decision.appliedThisRun()) throw failure;
+            if (!decision.appliedThisRun()) throw new NoSuchElementException(
+                    rootMessage(failure) + "; automatic recovery rejected all reviewed candidates; no click was performed.", failure);
             List<WebElement> replacements = driver.findElements(toBy(decision.replacementLocator()));
             if (replacements.size() != 1 || !replacements.get(0).isDisplayed()
                     || !replacements.get(0).isEnabled() || !safetyRule.test(replacements.get(0)))
