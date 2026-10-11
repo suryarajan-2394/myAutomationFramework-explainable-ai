@@ -51,7 +51,8 @@ public class LocatorBenchmarkTest {
                             new SelfHealingLocatorAgent.Locator(SelfHealingLocatorAgent.Strategy.CSS, "a.shopping_cart_link"),
                             List.of(new SelfHealingLocatorAgent.Candidate(
                                     new SelfHealingLocatorAgent.Locator(SelfHealingLocatorAgent.Strategy.DATA_TEST, "shopping-cart-link"),
-                                    .9, List.of("reviewed stable attribute"))));
+                                    .9, List.of("reviewed stable attribute"))),
+                            element -> CartRecoveryPolicy.accepts(element, driver.getCurrentUrl()));
                     decision = resolved.decision();
                     resolved.element().click();
                 } else driver.findElement(By.cssSelector("a.shopping_cart_link")).click();
@@ -68,12 +69,12 @@ public class LocatorBenchmarkTest {
                 int matches = driver.findElements(By.cssSelector("[data-test='shopping-cart-link']")).size();
                 reason = !healing ? "The original locator was unavailable; baseline does not recover."
                         : matches != 1 ? "Replacement must match exactly one element; found " + matches + "."
-                        : "The candidate was not visible and enabled. No click was performed.";
+                        : "The candidate failed availability or cart destination/role checks. No click was performed.";
             }
             screenshot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BASE64);
             String expected = fixture.equals("original.html") ? "ORIGINAL WORKED"
                     : fixture.equals("changed-class.html") && healing ? "VERIFIED RECOVERY"
-                    : fixture.equals("wrong-target.html") && healing ? "FALSE HEAL" : "BLOCKED SAFELY";
+                    : "BLOCKED SAFELY";
             Assert.assertEquals(outcome, expected, "Unexpected benchmark outcome for " + fixture);
         } finally {
             results.add(new Result(fixture, healing ? "Guarded recovery" : "Selenium baseline", outcome,
@@ -101,21 +102,23 @@ public class LocatorBenchmarkTest {
         html.append("<article class='alert'><h2>Decision summary</h2><p>").append(healed)
                 .append(" verified recoveries · ").append(falseHeals).append(" incorrect recoveries · precision ")
                 .append(precision).append("</p><p>Precision = correct recoveries ÷ all applied replacements. ")
-                .append("The wrong-target case deliberately exposes a missing destination guard. Do not approve automatic reuse based on element availability.</p>")
+                .append("The wrong-target case tests the cart destination guard. Automatic reuse still requires business-outcome verification.</p>")
                 .append("<small>This is a small synthetic benchmark, not evidence of production accuracy. A passing test suite means labelled outcomes were reproduced.</small></article>");
+        html.insert(html.indexOf("</article>"), "<div data-benchmark-metrics='1' data-correct='" + healed
+                + "' data-false='" + falseHeals + "' data-total='" + results.size() + "'></div>");
         String advice = falseHeals > 0
                 ? "Keep automatic reuse restricted. A replacement opened the wrong page; check its destination and role before clicking, then verify the expected page."
                 : applied == 0 ? "Recovery accuracy is not measured: no replacements were applied. Add recoverable changes before assessing readiness."
                 : "No incorrect recovery was observed in these cases. This small sample does not establish production safety; broaden the benchmark before rollout.";
-        String guidance = "<h2>What should we do next?</h2><p><b>Stakeholder decision:</b> " + advice + "</p>"
-                + "<p><b>Tech lead priority:</b> Add a cart-specific destination and element-role check, and keep checks for duplicate, hidden and disabled elements. "
+        String guidance = "<h2>Proposed acceptance targets</h2><p>At least 95% correct recovery precision, zero observed incorrect recoveries, and correct behavior on every safety fixture. Expand to at least 100 independently designed mutations before broader rollout. These are proposed project targets, not an industry standard.</p><h2>What should we do next?</h2><p><b>Stakeholder decision:</b> " + advice + "</p>"
+                + "<p><b>Tech lead priority:</b> Cart destination and role checks are now implemented. Keep the duplicate, hidden and disabled checks; add misleading links, script redirects and stale-element cases. "
                 + "Retest the wrong-destination case: it should be rejected before clicking while the changed-class case should still recover.</p>"
                 + "<p><b>Architect priority:</b> Keep candidate selection, safety rules and business verification separate. "
                 + "Record why each candidate was accepted or rejected. Reuse only replacements backed by verified business outcomes.</p>"
                 + "<p><b>Research improvement:</b> Add more independent mutations and repeat runs. Measure correct recovery, false healing, "
                 + "blocked recoverable cases and time. Do not raise precision by simply rejecting every candidate; safe useful recovery is the goal.</p>"
                 + "<p>These are rule-based recommendations from observed benchmark outcomes, not model-generated explanations. "
-                + "The checks above are proposed improvements; this report does not implement them or guarantee a future score.</p>";
+                + "Destination and role guards are implemented; broader cases and architecture work are proposed. No future score is guaranteed.</p>";
         int endSummary = html.indexOf("</article>");
         html.insert(endSummary, guidance);
         for (Result r : results) {

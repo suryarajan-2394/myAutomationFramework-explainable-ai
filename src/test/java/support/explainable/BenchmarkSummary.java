@@ -23,11 +23,34 @@ final class BenchmarkSummary {
             if (!match.find()) return unavailable();
             String text = match.group(1).replaceAll("</(?:h2|p|small|li)>", "\n")
                     .replaceAll("<[^>]*>", "").strip();
-            return "<section class='card'><h2>Controlled benchmark decision summary</h2>"
-                    + "<p><b>Source:</b> " + escape(latest.getFileName().toString()) + "</p>"
-                    + "<p>This is the latest available local benchmark, run separately from this live test. "
-                    + "It may describe an earlier code version; rerun the benchmark after changing recovery rules.</p>"
-                    + "<p style='white-space:pre-line'>" + escape(text) + "</p></section>";
+            StringBuilder cards = new StringBuilder();
+            var metrics = Pattern.compile("data-correct='(\\d+)' data-false='(\\d+)' data-total='(\\d+)'").matcher(source);
+            if (metrics.find()) {
+                long correct = Long.parseLong(metrics.group(1)), wrong = Long.parseLong(metrics.group(2));
+                long applied = correct + wrong;
+                String precision = applied == 0 ? "Not measured" : String.format(java.util.Locale.ROOT, "%.1f%%", 100.0 * correct / applied);
+                cards.append("<div class='benchmark-grid'><div class='benchmark-box'><h3>Correct recovery precision</h3><strong>")
+                        .append(precision).append("</strong><p>").append(correct).append(" correct out of ").append(applied)
+                        .append(" applied replacements</p></div><div class='benchmark-box'><h3>Incorrect recoveries</h3><strong>")
+                        .append(wrong).append("</strong><p>Target: zero observed</p></div><div class='benchmark-box'><h3>Evidence size</h3><strong>")
+                        .append(metrics.group(3)).append("</strong><p>Controlled executions, not independent production samples</p></div></div>");
+            }
+            cards.append("<div class='benchmark-box'><h3>Proposed acceptance targets</h3><ul>")
+                    .append("<li>Correct recovery precision: at least 95% on a broader labelled benchmark.</li>")
+                    .append("<li>Incorrect recoveries: zero observed in the acceptance suite.</li>")
+                    .append("<li>Recover the eligible changed-class case and reject every unsafe fixture.</li>")
+                    .append("<li>Expand to at least 100 independently designed mutations before considering broader rollout.</li>")
+                    .append("</ul><p>These are proposed project targets, not an industry standard. A perfect result on this small suite is not production approval.</p></div>");
+            for (String paragraph : text.split("\\n")) {
+                if (!paragraph.isBlank()) cards.append("<div class='benchmark-box'><p>").append(escape(paragraph)).append("</p></div>");
+            }
+            return "<style>.benchmark-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}"
+                    + ".benchmark-box{background:white;border:1px solid #dbe3ec;border-radius:10px;padding:18px;margin:12px 0}"
+                    + ".benchmark-box h3{margin:0 0 12px}.benchmark-box strong{font-size:28px}.benchmark-box p{line-height:1.6}"
+                    + ".benchmark-box li{margin:10px 0}</style><section class='card'><h2>Recovery readiness and improvement plan</h2>"
+                    + "<p><b>Benchmark source:</b> " + escape(latest.getFileName().toString()) + "</p>"
+                    + "<p>This benchmark was run separately from the live journey. Rerun it after recovery changes; an earlier report may describe an older code version.</p>"
+                    + cards + "</section>";
         } catch (IOException error) {
             return unavailable();
         }

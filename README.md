@@ -245,3 +245,17 @@ and architect guidance plus proposed research improvements. Recommendations are
 rule-based and do not change locator behavior. The current wrong-target case
 still intentionally demonstrates false healing. A passing live journey is separate
 from the readiness decision for recovery.
+
+### Safer cart recovery and readiness targets
+
+Cart recovery now checks anchor/link role, aria-disabled state and the exact expected
+cart destination on the same origin before selecting a replacement, and rechecks
+uniqueness and usability before returning it. Post-click business verification remains
+mandatory: JavaScript redirects can still defeat a static href check. The wrong-target
+fixture now expects rejection before clicking, while changed-class must still recover.
+The combined report uses metric cards and separated improvement paragraphs. Proposed
+project acceptance targets are >=95% recovery precision, zero observed incorrect
+recoveries, correct outcomes on every safety fixture, and at least 100 independent
+mutations before broader rollout. These are proposed targets, not an external standard.
+Rerun the benchmark to replace previous 50% results; improved scores must come from
+correct safe recovery, never relaxed assertions or removal of difficult scenarios.

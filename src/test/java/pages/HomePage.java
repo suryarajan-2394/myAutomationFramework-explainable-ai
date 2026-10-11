@@ -51,7 +51,8 @@ public class HomePage extends BasePageClass{
 			SelfHealingLocatorAgent.ResolvedElement resolved = cartRecovery.findWithApprovedRecovery(
 					driver, "Cart link", CART_ORIGINAL,
 					List.of(new SelfHealingLocatorAgent.Candidate(CART_APPROVED, 0.90,
-							List.of("reviewed-data-test", "cart-link-role"))));
+							List.of("reviewed-data-test", "cart-link-role"))),
+                        element -> support.explainable.CartRecoveryPolicy.accepts(element, driver.getCurrentUrl()));
 			pendingCartDecision = resolved.decision();
 			if (resolved.decision() != null) {
 				ExplainableAiIntegration.record("Cart locator recovery", "Unique, visible and enabled cart link",
