@@ -5,31 +5,38 @@ pipeline {
     maven 'MavenLocal'    // adjust to the name of your Maven tool in Jenkins global config
   }
 
-  options { timestamps() }
+  options { timestamps(); disableConcurrentBuilds(); skipDefaultCheckout(true) }
 
   stages {
     stage('Checkout') {
       steps { checkout scm }
     }
 
+    stage('Prepare current-run evidence') {
+      steps {
+        // Delete generated outputs only; archived evidence from previous builds remains in Jenkins.
+        dir('AutomationReports') { deleteDir() }
+        dir('target/surefire-reports') { deleteDir() }
+        script {
+          if (isUnix()) { sh 'rm -f AutomationReports.zip' }
+          else { bat 'if exist AutomationReports.zip del /F /Q AutomationReports.zip' }
+        }
+      }
+    }
+
     stage('Build & Run Tests') {
       steps {
         script {
           if (isUnix()) {
-            sh 'mvn clean test -Dsurefire.suiteXmlFiles=testng.xml'
+            sh 'mvn -B -Pstakeholder-report clean test'
           } else {
-            bat 'mvn clean test -Dsurefire.suiteXmlFiles=testng.xml'
+            bat 'mvn -B -Pstakeholder-report clean test'
           }
         }
       }
     }
 
-    stage('Archive Artifacts (optional)') {
-      when { expression { return true } }
-      steps {
-        archiveArtifacts artifacts: 'AutomationReports/**, target/**, AutomationReports.zip', fingerprint: true, allowEmptyArchive: true
-      }
-    }
+
   }
 
   post {
@@ -65,6 +72,11 @@ pipeline {
           echo "AutomationReports.zip already present - will attempt to attach it."
         }
 
+        // Archive current evidence even when Maven fails. Never publish old workspace results.
+        archiveArtifacts artifacts: 'AutomationReports/**, target/surefire-reports/**, AutomationReports.zip',
+                         fingerprint: true, allowEmptyArchive: true
+        junit testResults: 'target/surefire-reports/TEST-*.xml', allowEmptyResults: true
+
         // -- ensure TestAutomationReport.html full path if it's under AutomationReports --
         def htmlPath = 'AutomationReports/TestAutomationReport.html'
         if (!fileExists(htmlPath)) {
@@ -94,6 +106,11 @@ pipeline {
           echo "Will attach ${htmlPath}"
         }
 
+        // The timestamped explanation includes the benchmark summary and repair history.
+        if (fileExists('AutomationReports/explainable')) {
+          attachments << 'AutomationReports/explainable/explanation-*.html'
+        }
+
         // -- Compose email --
         def subject = "${env.JOB_NAME} #${env.BUILD_NUMBER} - ${currentBuild.currentResult}"
         def body = """
@@ -111,8 +128,7 @@ pipeline {
             body: body,
             mimeType: 'text/html',
             attachmentsPattern: attachments.join(','),
-            from: 'suryarajan.selvarajan@gmail.com',           // <-- change sender if needed
-            credentialsId: 'gmail-creds'                       // <-- put your Jenkins credential id (username+app-password)
+            from: 'suryarajan.selvarajan@gmail.com' // SMTP credentials belong in Jenkins Extended E-mail Notification settings.
           )
         } else {
           emailext (
@@ -120,8 +136,7 @@ pipeline {
             subject: subject,
             body: body,
             mimeType: 'text/html',
-            from: 'suryarajan.selvarajan@gmail.com',
-            credentialsId: 'gmail-creds'
+            from: 'suryarajan.selvarajan@gmail.com'
           )
         }
 

@@ -282,3 +282,30 @@ other page actions are not yet wired into this runtime recovery integration.
 
 Run `mvn -Pstakeholder-report test` after pulling. Inspect both the live outcome
 and benchmark evidence; a benchmark score does not override a failed live test.
+
+
+### Jenkins stakeholder pipeline
+
+The Jenkinsfile runs `mvn -B -Pstakeholder-report clean test`, replacing the old
+testng.xml-only command. Current generated report output is cleared before tests
+so an earlier successful benchmark cannot be mistaken for this build's evidence.
+Timestamped explanation HTML, detailed benchmark HTML, screenshots, the report ZIP
+and Surefire reports are archived in post.always, including on a failed Maven run.
+JUnit-format Surefire XML is published for Jenkins test results. Missing XML is
+allowed for a build that fails before tests; Maven's failure status is retained.
+
+Configure an agent with Java 17 or newer, Chrome, and access to SauceDemo and
+ChromeDriver (or an already provisioned compatible driver). The Maven tool name
+must match `MavenLocal` in Manage Jenkins > Tools. On a Linux agent without a
+display, the live CartTest additionally needs a virtual display; its browser
+setup currently remains headed. Windows agents need a usable desktop session.
+
+Required pipeline steps include JUnit and Email Extension, plus Timestamper for
+the existing timestamps option. SMTP credentials belong in Jenkins's Extended
+E-mail Notification settings; `credentialsId` is not an emailext step parameter.
+The existing email recipient is retained. This change configures future pipeline
+notifications; no Jenkins build or email was executed during implementation.
+
+After merging this pipeline PR, configure Pipeline script from SCM with branch
+main and script path Jenkinsfile, then Build Now. Download the current timestamped
+explanation HTML from build artifacts for the combined stakeholder overview.
