@@ -16,6 +16,7 @@ public class HomePage extends BasePageClass{
 			new SelfHealingLocatorAgent.Locator(SelfHealingLocatorAgent.Strategy.CSS, "a.shopping_cart_link");
 	private static final SelfHealingLocatorAgent.Locator CART_APPROVED =
 			new SelfHealingLocatorAgent.Locator(SelfHealingLocatorAgent.Strategy.CSS, "a[data-test='shopping-cart-link']");
+	private SelfHealingLocatorAgent.HealingDecision pendingCartDecision;
 	private final SelfHealingLocatorAgent cartRecovery = new SelfHealingLocatorAgent();
 
 	public HomePage(WebDriver driver) {
@@ -45,11 +46,13 @@ public class HomePage extends BasePageClass{
 	}
 	
 	public void clickOnCart() {
+		pendingCartDecision = null;
 		if (Boolean.getBoolean("framework.healing.cart.enabled")) {
 			SelfHealingLocatorAgent.ResolvedElement resolved = cartRecovery.findWithApprovedRecovery(
 					driver, "Cart link", CART_ORIGINAL,
 					List.of(new SelfHealingLocatorAgent.Candidate(CART_APPROVED, 0.90,
 							List.of("reviewed-data-test", "cart-link-role"))));
+			pendingCartDecision = resolved.decision();
 			if (resolved.decision() != null) {
 				ExplainableAiIntegration.record("Cart locator recovery", "Unique, visible and enabled cart link",
 						"Candidate selected (navigation still requires verification): "
@@ -64,6 +67,16 @@ public class HomePage extends BasePageClass{
 		driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
 	}
 	
+    /** Call once, immediately after checking the cart navigation postcondition. */
+    public void recordCartOutcome(boolean succeeded) {
+        if (pendingCartDecision == null) return;
+        var verified = cartRecovery.verifyOutcome(pendingCartDecision, succeeded);
+        pendingCartDecision = null;
+        ExplainableAiIntegration.record("Verify cart recovery", "Expected cart page opened",
+                verified.businessUpdate() + " " + verified.successRateLabel(),
+                succeeded ? ExplainableAiAgent.Outcome.PASS : ExplainableAiAgent.Outcome.FAIL, 0);
+    }
+
 	public void logOutFromApplication() {
 		hamburgerMenuButton.click();
 		logOutButton.click();

@@ -28,9 +28,11 @@ public final class ExplainableAiIntegration {
         ExplainableAiAgent.Outcome outcome = skipped ? ExplainableAiAgent.Outcome.SKIP
                 : passed ? ExplainableAiAgent.Outcome.PASS : ExplainableAiAgent.Outcome.FAIL;
         ExplainableAiAgent.Report report = current().complete(outcome, failure);
-        report.writeHtml(reportDirectory.resolve("explanation-" + stamp + ".html"));
-        report.writeJson(reportDirectory.resolve("explanation-" + stamp + ".json"));
-        RUN.remove();
+        try {
+            report.writeHtml(reportDirectory.resolve("explanation-" + stamp + ".html"));
+            if (Boolean.getBoolean("framework.reporting.json.enabled"))
+                report.writeJson(reportDirectory.resolve("explanation-" + stamp + ".json"));
+        } finally { RUN.remove(); }
         return report;
     }
 

@@ -41,8 +41,10 @@ public class CartTest extends BaseTest {
 
 			explainedStep("Open cart", "Cart page is displayed", () -> homePage.clickOnCart(),
 					() -> Assert.assertTrue(new WebDriverWait(driver, Duration.ofSeconds(10)).until(d -> d.getCurrentUrl().contains("/cart.html")), "Cart URL was not reached"));
+			homePage.recordCartOutcome(true);
 			extentTestThread.get().log(Status.PASS, "Cart Icon clicked successfully");
 		} catch (Throwable t) {
+			homePage.recordCartOutcome(false);
 			extentTestThread.get().log(Status.FAIL, "Error during clicking Cart: " + t.getMessage());
 			throw t;
 		}

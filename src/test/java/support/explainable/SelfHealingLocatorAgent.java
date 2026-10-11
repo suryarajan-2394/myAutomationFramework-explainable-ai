@@ -35,7 +35,7 @@ public final class SelfHealingLocatorAgent {
 
     public record Candidate(Locator locator, double baseConfidence, List<String> matchingSignals) {
         public Candidate {
-            if (baseConfidence < 0 || baseConfidence > 1) throw new IllegalArgumentException("Confidence must be between 0 and 1.");
+            if (!Double.isFinite(baseConfidence) || baseConfidence < 0 || baseConfidence > 1) throw new IllegalArgumentException("Confidence must be between 0 and 1.");
             matchingSignals = matchingSignals == null ? List.of() : List.copyOf(matchingSignals);
         }
     }
@@ -67,6 +67,7 @@ public final class SelfHealingLocatorAgent {
     private final double confidenceThreshold;
     private final int promotionMinimumRuns;
     private final double promotionSuccessThreshold;
+    private final java.util.Set<HealingDecision> verifiedDecisions = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
     private final Map<String, Reliability> reliabilityByLocator = new HashMap<>();
     private final Map<String, Locator> promotedOverrides = new HashMap<>();
 
@@ -102,14 +103,30 @@ public final class SelfHealingLocatorAgent {
 
         double score = scoreCandidate(winner);
         Reliability reliability = reliability(winner.locator());
-        reliability.record(true); // live validation passed: visible + enabled
-        boolean promoted = reliability.validationRuns >= promotionMinimumRuns
-                && reliability.rate() >= promotionSuccessThreshold;
-        if (promoted) promotedOverrides.put(elementName, winner.locator());
+        // A usable element is not evidence that the business action succeeded.
+        boolean promoted = false; // Promotion requires an explicit verified business outcome.
 
         return new HealingDecision(elementName, failedLocator, winner.locator(), failureReason, score,
                 reliability.successfulRuns, reliability.validationRuns, reliability.rate(), true, promoted,
-                businessUpdate(elementName, reliability, promoted));
+                "A replacement was selected. The business outcome still needs verification.");
+    }
+
+    /** Record only after the caller has checked the intended business postcondition. */
+    public HealingDecision verifyOutcome(HealingDecision decision, boolean succeeded) {
+        if (decision == null || !decision.appliedThisRun()) return decision;
+        if (!verifiedDecisions.add(decision)) throw new IllegalStateException("Decision already verified.");
+        Reliability history = reliability(decision.replacementLocator());
+        history.record(succeeded);
+        boolean promoted = succeeded && history.validationRuns >= promotionMinimumRuns
+                && history.rate() >= promotionSuccessThreshold;
+        if (promoted) promotedOverrides.put(decision.elementName(), decision.replacementLocator());
+        HealingDecision verified = new HealingDecision(decision.elementName(), decision.failedLocator(), decision.replacementLocator(),
+                decision.failureReason(), decision.matchConfidence(), history.successfulRuns, history.validationRuns,
+                history.rate(), true, promoted, succeeded
+                ? "The expected business outcome was verified after using the replacement."
+                : "The replacement was usable, but the expected business outcome failed. Investigate before reuse.");
+        verifiedDecisions.add(verified);
+        return verified;
     }
 
     /**
@@ -134,7 +151,7 @@ public final class SelfHealingLocatorAgent {
             WebElement element = driver.findElement(toBy(primary));
             if (element.isDisplayed() && element.isEnabled()) return new ResolvedElement(element, null);
             throw new NoSuchElementException("Locator resolved an unavailable element: " + primary.display());
-        } catch (WebDriverException failure) {
+        } catch (NoSuchElementException failure) {
             LocatorProbe seleniumProbe = locator -> {
                 List<WebElement> matches = driver.findElements(toBy(locator));
                 if (matches.size() != 1) return new ProbeResult(false, false,
@@ -190,7 +207,7 @@ public final class SelfHealingLocatorAgent {
     public static void writeExecutiveHtml(Path destination, String testName, HealingDecision decision) throws IOException {
         Files.createDirectories(destination.getParent());
         String replacement = decision.replacementLocator() == null ? "No replacement applied" : decision.replacementLocator().display();
-        String status = decision.appliedThisRun() ? "RECOVERED" : "BLOCKED";
+        String status = !decision.appliedThisRun() ? "BLOCKED" : decision.validationRuns() == 0 ? "AWAITING VERIFICATION" : "SEE VERIFIED OUTCOMES";
         String content = """
             <!doctype html><html><head><meta charset="utf-8"><title>Test Resilience Executive Brief</title>
             <style>

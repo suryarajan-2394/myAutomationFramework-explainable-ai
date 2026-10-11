@@ -179,3 +179,42 @@ Use RegressionSuiteReport.java and integration-snippets/RegressionSuite-Consolid
 The suite collector is safe for parallel TestNG runs: each test has an isolated thread-local collection; completed test summaries enter a concurrent suite queue. The executive page gives portfolio-level pass/recovered/blocked metrics and every test can be expanded to show its action timeline, explanation, failed/replaced locator, reliability percentage, and business update.
 
 The working four-test example is demo-output/regression-suite-executive-report.html. It now includes an executive visual summary: an outcome donut chart, Extent-style step-quality bars, and a self-healing effectiveness bar. The same layout scales to 50-100 tests; for very large suites, leaders read the KPI and visual summary first while engineering expands only the relevant test evidence.
+
+
+### HTML reports and controlled recovery benchmark
+
+HTML is now the primary output. Per-test pages are written to
+`AutomationReports/explainable/explanation-DD-MM-YYYY_HH-mm-ss.html`.
+JSON is optional: enable it with `-Dframework.reporting.json.enabled=true`.
+Hyphens replace colons in filenames for Windows compatibility.
+
+Run these commands individually on the increment branch:
+
+```powershell
+mvn "-Dtest=RecoveryEvidenceTest" test
+mvn "-Dtest=CartLocatorFixtureTest" test
+mvn "-Dtest=LocatorBenchmarkTest" test
+mvn "-Dtest=CartTest" "-Dframework.healing.cart.enabled=true" test
+```
+
+Open the newest `AutomationReports/benchmark/locator-benchmark-*.html` in a browser.
+It is a standalone, shareable page with embedded screenshots, plain-language
+outcomes, timing and correct-recovery precision. The benchmark does not require Excel
+or the live e-commerce site; it requires local Chrome and a compatible driver.
+It compares seven labelled scenarios against plain Selenium (14 executions).
+A passing characterization suite means the expected labels matched, **not** that
+every customer journey succeeded. The deliberately wrong destination should be
+labelled FALSE HEAL: it exposes that uniqueness, visibility and enabled state do
+not prove semantic correctness. Execution errors are displayed separately.
+
+Recovery reliability now counts explicit business-outcome checks rather than
+element availability. CartTest records the navigation assertion result. A candidate
+score is a deterministic rule score, not a calibrated probability or a LIME explanation.
+In-memory promotion remains experimental and is not persisted between CI runs.
+
+Next research increments: add destination/role constraints and stale-element cases;
+run repeated mutations and report recovery recall, false-healing rate, latency
+distributions and confidence intervals; record complete candidate/rejection traces;
+compare Healenium on the same fixtures; then add model-based ranking with LIME fidelity
+checks and compile/assertion validation for generated test classes. ViT, LIME,
+Healenium and AI test generation are proposals, not implemented features of this increment.
