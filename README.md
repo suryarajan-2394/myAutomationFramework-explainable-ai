@@ -218,3 +218,14 @@ distributions and confidence intervals; record complete candidate/rejection trac
 compare Healenium on the same fixtures; then add model-based ranking with LIME fidelity
 checks and compile/assertion validation for generated test classes. ViT, LIME,
 Healenium and AI test generation are proposals, not implemented features of this increment.
+
+### Single stakeholder report
+
+Run LocatorBenchmarkTest, then CartTest. The timestamped per-test explanation HTML
+now includes the latest local benchmark decision summary. Share that one explanation
+HTML for the live test result and benchmark overview. The section identifies the source
+benchmark filename (including its timestamp) and explains that it is separate evidence,
+which may come from an earlier code version. Rerun the benchmark after code changes.
+Missing or unreadable benchmark summaries show an explicit unavailable message rather
+than invented metrics. The detailed benchmark screenshots remain in the standalone
+benchmark report; the combined page includes the decision summary only.
