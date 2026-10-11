@@ -179,3 +179,106 @@ Use RegressionSuiteReport.java and integration-snippets/RegressionSuite-Consolid
 The suite collector is safe for parallel TestNG runs: each test has an isolated thread-local collection; completed test summaries enter a concurrent suite queue. The executive page gives portfolio-level pass/recovered/blocked metrics and every test can be expanded to show its action timeline, explanation, failed/replaced locator, reliability percentage, and business update.
 
 The working four-test example is demo-output/regression-suite-executive-report.html. It now includes an executive visual summary: an outcome donut chart, Extent-style step-quality bars, and a self-healing effectiveness bar. The same layout scales to 50-100 tests; for very large suites, leaders read the KPI and visual summary first while engineering expands only the relevant test evidence.
+
+
+### HTML reports and controlled recovery benchmark
+
+HTML is now the primary output. Per-test pages are written to
+`AutomationReports/explainable/explanation-DD-MM-YYYY_HH-mm-ss.html`.
+JSON is optional: enable it with `-Dframework.reporting.json.enabled=true`.
+Hyphens replace colons in filenames for Windows compatibility.
+
+Run these commands individually on the increment branch:
+
+```powershell
+mvn "-Dtest=RecoveryEvidenceTest" test
+mvn "-Dtest=CartLocatorFixtureTest" test
+mvn "-Dtest=LocatorBenchmarkTest" test
+mvn "-Dtest=CartTest" "-Dframework.healing.cart.enabled=true" test
+```
+
+Open the newest `AutomationReports/benchmark/locator-benchmark-*.html` in a browser.
+It is a standalone, shareable page with embedded screenshots, plain-language
+outcomes, timing and correct-recovery precision. The benchmark does not require Excel
+or the live e-commerce site; it requires local Chrome and a compatible driver.
+It compares seven labelled scenarios against plain Selenium (14 executions).
+A passing characterization suite means the expected labels matched, **not** that
+every customer journey succeeded. The deliberately wrong destination should be
+labelled FALSE HEAL: it exposes that uniqueness, visibility and enabled state do
+not prove semantic correctness. Execution errors are displayed separately.
+
+Recovery reliability now counts explicit business-outcome checks rather than
+element availability. CartTest records the navigation assertion result. A candidate
+score is a deterministic rule score, not a calibrated probability or a LIME explanation.
+In-memory promotion remains experimental and is not persisted between CI runs.
+
+Next research increments: add destination/role constraints and stale-element cases;
+run repeated mutations and report recovery recall, false-healing rate, latency
+distributions and confidence intervals; record complete candidate/rejection traces;
+compare Healenium on the same fixtures; then add model-based ranking with LIME fidelity
+checks and compile/assertion validation for generated test classes. ViT, LIME,
+Healenium and AI test generation are proposals, not implemented features of this increment.
+
+### Single stakeholder report
+
+Run LocatorBenchmarkTest, then CartTest. The timestamped per-test explanation HTML
+now includes the latest local benchmark decision summary. Share that one explanation
+HTML for the live test result and benchmark overview. The section identifies the source
+benchmark filename (including its timestamp) and explains that it is separate evidence,
+which may come from an earlier code version. Rerun the benchmark after code changes.
+Missing or unreadable benchmark summaries show an explicit unavailable message rather
+than invented metrics. The detailed benchmark screenshots remain in the standalone
+benchmark report; the combined page includes the decision summary only.
+
+### One-command stakeholder run
+
+```powershell
+mvn -Pstakeholder-report test
+```
+
+This profile runs evidence checks, then the controlled benchmark, then the live
+CartTest in one ordered TestNG suite with cart healing enabled. Do not add -Dtest,
+which overrides suite selection. It requires Chrome, live SauceDemo access and
+the tracked Excel workbook. Share the newest timestamped explanation HTML.
+The benchmark decision summary now includes plain-English stakeholder, tech-lead
+and architect guidance plus proposed research improvements. Recommendations are
+rule-based and do not change locator behavior. The current wrong-target case
+still intentionally demonstrates false healing. A passing live journey is separate
+from the readiness decision for recovery.
+
+### Safer cart recovery and readiness targets
+
+Cart recovery now checks anchor/link role, aria-disabled state and the exact expected
+cart destination on the same origin before selecting a replacement, and rechecks
+uniqueness and usability before returning it. Post-click business verification remains
+mandatory: JavaScript redirects can still defeat a static href check. The wrong-target
+fixture now expects rejection before clicking, while changed-class must still recover.
+The combined report uses metric cards and separated improvement paragraphs. Proposed
+project acceptance targets are >=95% recovery precision, zero observed incorrect
+recoveries, correct outcomes on every safety fixture, and at least 100 independent
+mutations before broader rollout. These are proposed targets, not an external standard.
+Rerun the benchmark to replace previous 50% results; improved scores must come from
+correct safe recovery, never relaxed assertions or removal of difficult scenarios.
+
+### JavaScript cart fix and automatic repair history
+
+SauceDemo's cart component is an anchor with role=button and an onClick router
+handler, without href. The guard now supports this reviewed pattern only when
+data-test is shopping-cart-link, its accessible name starts with Cart, and the
+current page is inventory.html. Explicit href links still require the expected
+same-origin cart path. Source reference:
+https://github.com/saucelabs/sample-app-web/blob/main/src/components/CartButton.jsx
+
+The benchmark now includes this JavaScript navigation pattern (8 scenarios, 16
+executions). Runtime repair history records the original failure, replacement
+locator, source call-site file and line, and verified second locator attempt.
+This is a bounded locator retry within the same test, not a full test rerun or
+a source file rewrite. It avoids repeating earlier shopping actions. When no
+locator breaks, the report explicitly states no repair was required. If no
+approved safe candidate exists, the test remains failed with a blocked-repair
+reason. Missing candidates and business/assertion failures cannot be healed by
+blind retries. Cart healing remains opt-in outside the stakeholder profile;
+other page actions are not yet wired into this runtime recovery integration.
+
+Run `mvn -Pstakeholder-report test` after pulling. Inspect both the live outcome
+and benchmark evidence; a benchmark score does not override a failed live test.

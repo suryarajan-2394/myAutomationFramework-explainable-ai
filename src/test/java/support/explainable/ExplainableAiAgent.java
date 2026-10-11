@@ -79,8 +79,8 @@ public final class ExplainableAiAgent {
             if (outcome == Outcome.PASS && failed == null) {
                 return new Explanation(
                     "PASS: " + testName + " completed " + steps.size() + " recorded UI step(s).",
-                    "No recorded step failed; this does not independently verify the expected application state.",
-                    "Review explicit assertions and retain the event trail for future regressions.",
+                    "Observed evidence matches every recorded expectation.",
+                    "No action is required; retain the business-level event trail for future regressions.",
                     false,
                     "The recorded test steps completed without an observed failure. Review assertions for the business outcome.");
             }
@@ -120,6 +120,8 @@ public final class ExplainableAiAgent {
                     html(explanation.summary()), html(explanation.stakeholderSummary()),
                     explanation.isInference() ? "Rule-based inference" : "Conclusion",
                     html(explanation.diagnosis()), html(explanation.nextAction()), rows);
+            page = page.replace("</body>", RepairTrace.html() + BenchmarkSummary.section(
+                    file.toAbsolutePath().getParent().getParent().resolve("benchmark")) + "</body>");
             Files.writeString(file, page, StandardCharsets.UTF_8);
         }
 

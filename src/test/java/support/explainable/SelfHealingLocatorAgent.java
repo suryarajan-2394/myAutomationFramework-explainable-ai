@@ -35,7 +35,7 @@ public final class SelfHealingLocatorAgent {
 
     public record Candidate(Locator locator, double baseConfidence, List<String> matchingSignals) {
         public Candidate {
-            if (baseConfidence < 0 || baseConfidence > 1) throw new IllegalArgumentException("Confidence must be between 0 and 1.");
+            if (!Double.isFinite(baseConfidence) || baseConfidence < 0 || baseConfidence > 1) throw new IllegalArgumentException("Confidence must be between 0 and 1.");
             matchingSignals = matchingSignals == null ? List.of() : List.copyOf(matchingSignals);
         }
     }
@@ -67,6 +67,7 @@ public final class SelfHealingLocatorAgent {
     private final double confidenceThreshold;
     private final int promotionMinimumRuns;
     private final double promotionSuccessThreshold;
+    private final java.util.Set<HealingDecision> verifiedDecisions = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
     private final Map<String, Reliability> reliabilityByLocator = new HashMap<>();
     private final Map<String, Locator> promotedOverrides = new HashMap<>();
 
@@ -102,14 +103,30 @@ public final class SelfHealingLocatorAgent {
 
         double score = scoreCandidate(winner);
         Reliability reliability = reliability(winner.locator());
-        reliability.record(true); // live validation passed: visible + enabled
-        boolean promoted = reliability.validationRuns >= promotionMinimumRuns
-                && reliability.rate() >= promotionSuccessThreshold;
-        if (promoted) promotedOverrides.put(elementName, winner.locator());
+        // A usable element is not evidence that the business action succeeded.
+        boolean promoted = false; // Promotion requires an explicit verified business outcome.
 
         return new HealingDecision(elementName, failedLocator, winner.locator(), failureReason, score,
                 reliability.successfulRuns, reliability.validationRuns, reliability.rate(), true, promoted,
-                businessUpdate(elementName, reliability, promoted));
+                "A replacement was selected. The business outcome still needs verification.");
+    }
+
+    /** Record only after the caller has checked the intended business postcondition. */
+    public HealingDecision verifyOutcome(HealingDecision decision, boolean succeeded) {
+        if (decision == null || !decision.appliedThisRun()) return decision;
+        if (!verifiedDecisions.add(decision)) throw new IllegalStateException("Decision already verified.");
+        Reliability history = reliability(decision.replacementLocator());
+        history.record(succeeded);
+        boolean promoted = succeeded && history.validationRuns >= promotionMinimumRuns
+                && history.rate() >= promotionSuccessThreshold;
+        if (promoted) promotedOverrides.put(decision.elementName(), decision.replacementLocator());
+        HealingDecision verified = new HealingDecision(decision.elementName(), decision.failedLocator(), decision.replacementLocator(),
+                decision.failureReason(), decision.matchConfidence(), history.successfulRuns, history.validationRuns,
+                history.rate(), true, promoted, succeeded
+                ? "The expected business outcome was verified after using the replacement."
+                : "The replacement was usable, but the expected business outcome failed. Investigate before reuse.");
+        verifiedDecisions.add(verified);
+        return verified;
     }
 
     /**
@@ -118,30 +135,38 @@ public final class SelfHealingLocatorAgent {
      */
     public ResolvedElement findWithRecovery(WebDriver driver, String elementName, Locator original,
                                              List<Candidate> candidates) {
-        return findWithRecovery(driver, elementName, original, candidates, true);
+        return findWithRecovery(driver, elementName, original, candidates, true, element -> true);
     }
 
     /** Restrict recovery to reviewed candidates when discovery would be unsafe for this action. */
     public ResolvedElement findWithApprovedRecovery(WebDriver driver, String elementName, Locator original,
                                                      List<Candidate> candidates) {
-        return findWithRecovery(driver, elementName, original, candidates, false);
+        return findWithRecovery(driver, elementName, original, candidates, false, element -> true);
+    }
+
+    public ResolvedElement findWithApprovedRecovery(WebDriver driver, String elementName, Locator original,
+            List<Candidate> candidates, java.util.function.Predicate<WebElement> safetyRule) {
+        return findWithRecovery(driver, elementName, original, candidates, false, safetyRule);
     }
 
     private ResolvedElement findWithRecovery(WebDriver driver, String elementName, Locator original,
-                                             List<Candidate> candidates, boolean discover) {
+                                             List<Candidate> candidates, boolean discover, java.util.function.Predicate<WebElement> safetyRule) {
         Locator primary = promotedOverrides.getOrDefault(elementName, original);
         try {
-            WebElement element = driver.findElement(toBy(primary));
-            if (element.isDisplayed() && element.isEnabled()) return new ResolvedElement(element, null);
-            throw new NoSuchElementException("Locator resolved an unavailable element: " + primary.display());
-        } catch (WebDriverException failure) {
+            List<WebElement> originals = driver.findElements(toBy(primary));
+            if (originals.size() != 1) throw new NoSuchElementException("Original locator is missing or ambiguous.");
+            WebElement element = originals.get(0);
+            if (element.isDisplayed() && element.isEnabled() && safetyRule.test(element)) return new ResolvedElement(element, null);
+            throw new NoSuchElementException("Original locator matched a control rejected by visibility, enabled-state or cart safety checks: " + primary.display()
+                    + "; tag=" + element.getTagName() + "; role=" + element.getAttribute("role") + "; href=" + element.getAttribute("href"));
+        } catch (NoSuchElementException failure) {
             LocatorProbe seleniumProbe = locator -> {
                 List<WebElement> matches = driver.findElements(toBy(locator));
                 if (matches.size() != 1) return new ProbeResult(false, false,
                         "Candidate must resolve to exactly one element; found " + matches.size());
                 for (WebElement match : matches) {
                     try {
-                        if (match.isDisplayed() && match.isEnabled())
+                        if (match.isDisplayed() && match.isEnabled() && safetyRule.test(match))
                             return new ProbeResult(true, true, "Candidate is visible and enabled.");
                     } catch (WebDriverException ignored) { /* candidate did not remain usable */ }
                 }
@@ -150,8 +175,13 @@ public final class SelfHealingLocatorAgent {
             List<Candidate> allCandidates = new ArrayList<>(candidates);
             if (discover) allCandidates.addAll(discoverCandidates(driver, elementName));
             HealingDecision decision = recover(elementName, primary, rootMessage(failure), allCandidates, seleniumProbe);
-            if (!decision.appliedThisRun()) throw failure;
-            return new ResolvedElement(driver.findElement(toBy(decision.replacementLocator())), decision);
+            if (!decision.appliedThisRun()) throw new NoSuchElementException(
+                    rootMessage(failure) + "; automatic recovery rejected all reviewed candidates; no click was performed.", failure);
+            List<WebElement> replacements = driver.findElements(toBy(decision.replacementLocator()));
+            if (replacements.size() != 1 || !replacements.get(0).isDisplayed()
+                    || !replacements.get(0).isEnabled() || !safetyRule.test(replacements.get(0)))
+                throw new NoSuchElementException("Replacement changed or failed the safety rule before use.");
+            return new ResolvedElement(replacements.get(0), decision);
         }
     }
 
@@ -190,7 +220,7 @@ public final class SelfHealingLocatorAgent {
     public static void writeExecutiveHtml(Path destination, String testName, HealingDecision decision) throws IOException {
         Files.createDirectories(destination.getParent());
         String replacement = decision.replacementLocator() == null ? "No replacement applied" : decision.replacementLocator().display();
-        String status = decision.appliedThisRun() ? "RECOVERED" : "BLOCKED";
+        String status = !decision.appliedThisRun() ? "BLOCKED" : decision.validationRuns() == 0 ? "AWAITING VERIFICATION" : "SEE VERIFIED OUTCOMES";
         String content = """
             <!doctype html><html><head><meta charset="utf-8"><title>Test Resilience Executive Brief</title>
             <style>

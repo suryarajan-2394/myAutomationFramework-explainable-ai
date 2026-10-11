@@ -65,4 +65,21 @@
 			</plugin>
 		</plugins>
 	</build>
+    <profiles>
+        <profile>
+            <id>stakeholder-report</id>
+            <build><plugins><plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <suiteXmlFiles combine.self="override">
+                        <suiteXmlFile>stakeholder-testng.xml</suiteXmlFile>
+                    </suiteXmlFiles>
+                    <systemPropertyVariables>
+                        <framework.healing.cart.enabled>true</framework.healing.cart.enabled>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin></plugins></build>
+        </profile>
+    </profiles>
 </project>

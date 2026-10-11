@@ -66,4 +66,27 @@ public class CartLocatorFixtureTest {
         Assert.expectThrows(NoSuchElementException.class, () -> new HomePage(driver).clickOnCart());
         Assert.assertTrue(driver.getCurrentUrl().endsWith("/duplicate.html"), "A wrong target was clicked");
     }
+    @Test
+    public void javascriptCartControlRecoversAndReportsBothAttempts() throws Exception {
+        open("inventory.html");
+        HomePage page = new HomePage(driver);
+        page.clickOnCart();
+        Assert.assertTrue(driver.getCurrentUrl().endsWith("/cart.html"));
+        page.recordCartOutcome(true);
+        Path directory = java.nio.file.Files.createTempDirectory("repair-evidence-");
+        Path html = directory.resolve("explainable/explanation-fixture.html");
+        try {
+            ExplainableAiIntegration.finish(true, false, null, directory.resolve("explainable"), "fixture");
+            String content = java.nio.file.Files.readString(html);
+            Assert.assertTrue(content.contains("Attempt 1: original locator failed"));
+            Assert.assertTrue(content.contains("Automatic runtime repair selected"));
+            Assert.assertTrue(content.contains("Attempt 2: passed after healing"));
+            Assert.assertTrue(content.contains("HomePage.java:"));
+            Assert.assertTrue(content.contains("No Java source line was rewritten"));
+        } finally {
+            java.nio.file.Files.deleteIfExists(html);
+            java.nio.file.Files.deleteIfExists(directory.resolve("explainable"));
+            java.nio.file.Files.deleteIfExists(directory);
+        }
+    }
 }
