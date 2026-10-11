@@ -229,3 +229,19 @@ which may come from an earlier code version. Rerun the benchmark after code chan
 Missing or unreadable benchmark summaries show an explicit unavailable message rather
 than invented metrics. The detailed benchmark screenshots remain in the standalone
 benchmark report; the combined page includes the decision summary only.
+
+### One-command stakeholder run
+
+```powershell
+mvn -Pstakeholder-report test
+```
+
+This profile runs evidence checks, then the controlled benchmark, then the live
+CartTest in one ordered TestNG suite with cart healing enabled. Do not add -Dtest,
+which overrides suite selection. It requires Chrome, live SauceDemo access and
+the tracked Excel workbook. Share the newest timestamped explanation HTML.
+The benchmark decision summary now includes plain-English stakeholder, tech-lead
+and architect guidance plus proposed research improvements. Recommendations are
+rule-based and do not change locator behavior. The current wrong-target case
+still intentionally demonstrates false healing. A passing live journey is separate
+from the readiness decision for recovery.

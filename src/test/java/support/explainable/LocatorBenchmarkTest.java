@@ -103,6 +103,21 @@ public class LocatorBenchmarkTest {
                 .append(precision).append("</p><p>Precision = correct recoveries ÷ all applied replacements. ")
                 .append("The wrong-target case deliberately exposes a missing destination guard. Do not approve automatic reuse based on element availability.</p>")
                 .append("<small>This is a small synthetic benchmark, not evidence of production accuracy. A passing test suite means labelled outcomes were reproduced.</small></article>");
+        String advice = falseHeals > 0
+                ? "Keep automatic reuse restricted. A replacement opened the wrong page; check its destination and role before clicking, then verify the expected page."
+                : applied == 0 ? "Recovery accuracy is not measured: no replacements were applied. Add recoverable changes before assessing readiness."
+                : "No incorrect recovery was observed in these cases. This small sample does not establish production safety; broaden the benchmark before rollout.";
+        String guidance = "<h2>What should we do next?</h2><p><b>Stakeholder decision:</b> " + advice + "</p>"
+                + "<p><b>Tech lead priority:</b> Add a cart-specific destination and element-role check, and keep checks for duplicate, hidden and disabled elements. "
+                + "Retest the wrong-destination case: it should be rejected before clicking while the changed-class case should still recover.</p>"
+                + "<p><b>Architect priority:</b> Keep candidate selection, safety rules and business verification separate. "
+                + "Record why each candidate was accepted or rejected. Reuse only replacements backed by verified business outcomes.</p>"
+                + "<p><b>Research improvement:</b> Add more independent mutations and repeat runs. Measure correct recovery, false healing, "
+                + "blocked recoverable cases and time. Do not raise precision by simply rejecting every candidate; safe useful recovery is the goal.</p>"
+                + "<p>These are rule-based recommendations from observed benchmark outcomes, not model-generated explanations. "
+                + "The checks above are proposed improvements; this report does not implement them or guarantee a future score.</p>";
+        int endSummary = html.indexOf("</article>");
+        html.insert(endSummary, guidance);
         for (Result r : results) {
             html.append("<article><h2>").append(escape(r.scenario)).append(" · ").append(escape(r.mode))
                     .append("</h2><p><b>").append(escape(r.outcome)).append("</b></p><p>").append(escape(r.reason))

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="Stakeholder evidence" parallel="none" preserve-order="true" thread-count="1">
+    <test name="Evidence checks"><classes>
+        <class name="support.explainable.RecoveryEvidenceTest"/>
+        <class name="support.explainable.BenchmarkSummaryTest"/>
+    </classes></test>
+    <test name="Controlled benchmark"><classes>
+        <class name="support.explainable.LocatorBenchmarkTest"/>
+    </classes></test>
+    <test name="Live cart journey"><classes>
+        <class name="testCase.CartTest"/>
+    </classes></test>
+</suite>

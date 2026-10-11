@@ -21,7 +21,7 @@ final class BenchmarkSummary {
             String source = Files.readString(latest, StandardCharsets.UTF_8);
             var match = Pattern.compile("<article class='alert'>(.*?)</article>", Pattern.DOTALL).matcher(source);
             if (!match.find()) return unavailable();
-            String text = match.group(1).replaceAll("</(?:h2|p|small)>", "\n")
+            String text = match.group(1).replaceAll("</(?:h2|p|small|li)>", "\n")
                     .replaceAll("<[^>]*>", "").strip();
             return "<section class='card'><h2>Controlled benchmark decision summary</h2>"
                     + "<p><b>Source:</b> " + escape(latest.getFileName().toString()) + "</p>"
