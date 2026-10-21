@@ -3,6 +3,9 @@
 <suite name="Stakeholder evidence" parallel="none" preserve-order="true" thread-count="1">
     <test name="Evidence checks"><classes>
         <class name="support.explainable.RecoveryEvidenceTest"/>
+        <class name="support.explainable.BenchmarkMetricsTest"/>
+        <class name="support.explainable.CandidateAuditTest"/>
+        <class name="pages.CartPageEvidenceTest"/>
         <class name="support.explainable.RepairTraceTest"/>
         <class name="support.explainable.CartRecoveryPolicyTest"/>
         <class name="support.explainable.BenchmarkSummaryTest"/>

@@ -78,6 +78,9 @@ public class BaseTest {
 	public void setup(@Optional("chrome") String browser, Method method) {
 		if (browser.equalsIgnoreCase("chrome")) {
 			ChromeOptions options = new ChromeOptions();
+            if (Boolean.getBoolean("framework.browser.headless")) options.addArguments("--headless=new");
+            String browserBinary = System.getProperty("framework.browser.binary");
+            if (browserBinary != null && !browserBinary.isBlank()) options.setBinary(browserBinary);
 			Map<String, Object> prefs = new HashMap<>();
 			prefs.put("credentials_enable_service", false);
 			prefs.put("profile.password_manager_enabled", false);

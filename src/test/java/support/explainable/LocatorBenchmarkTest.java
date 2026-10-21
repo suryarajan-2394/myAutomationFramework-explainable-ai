@@ -20,7 +20,7 @@ import util.utility;
 
 /** Controlled characterization: test success means the labelled outcome matched, not that every journey succeeded. */
 public class LocatorBenchmarkTest {
-    private record Result(String scenario, String mode, String outcome, String reason, long millis, String screenshot) { }
+    private record Result(String scenario, String mode, String outcome, String reason, long millis, String screenshot, boolean applied, boolean expectedMatched) { }
     private final List<Result> results = new ArrayList<>();
 
     @DataProvider(name = "cases")
@@ -36,59 +36,77 @@ public class LocatorBenchmarkTest {
     @Test(dataProvider = "cases")
     public void benchmark(String fixture, boolean healing) {
         ChromeOptions options = new ChromeOptions();
+            String browserBinary = System.getProperty("framework.browser.binary");
+            if (browserBinary != null && !browserBinary.isBlank()) options.setBinary(browserBinary);
         options.addArguments("--headless=new", "--window-size=1200,800");
-        WebDriver driver = new ChromeDriver(options);
-        String outcome = "EXECUTION ERROR", reason = "";
+        WebDriver driver = null;
+        String outcome = "EXECUTION ERROR", reason = "", screenshot = "";
+        boolean applied = false, expectedMatched = false;
         long started = System.nanoTime();
-        String screenshot = "";
         SelfHealingLocatorAgent agent = new SelfHealingLocatorAgent();
         SelfHealingLocatorAgent.HealingDecision decision = null;
         try {
+            driver = new ChromeDriver(options);
             driver.get(Path.of("src/test/resources/locator-fixture", fixture).toAbsolutePath().toUri().toString());
+            org.openqa.selenium.WebElement target = null;
             try {
                 if (healing) {
+                    final WebDriver currentDriver = driver;
                     var resolved = agent.findWithApprovedRecovery(driver, "Shopping cart",
                             new SelfHealingLocatorAgent.Locator(SelfHealingLocatorAgent.Strategy.CSS, "a.shopping_cart_link"),
                             List.of(new SelfHealingLocatorAgent.Candidate(
                                     new SelfHealingLocatorAgent.Locator(SelfHealingLocatorAgent.Strategy.DATA_TEST, "shopping-cart-link"),
                                     .9, List.of("reviewed stable attribute"))),
-                            element -> CartRecoveryPolicy.accepts(element, driver.getCurrentUrl()));
+                            element -> CartRecoveryPolicy.accepts(element, currentDriver.getCurrentUrl()));
                     decision = resolved.decision();
-                    resolved.element().click();
-                } else driver.findElement(By.cssSelector("a.shopping_cart_link")).click();
+                    applied = decision != null && decision.appliedThisRun(); // Count before click/verification can fail.
+                    target = resolved.element();
+                } else target = driver.findElement(By.cssSelector("a.shopping_cart_link"));
+            } catch (NoSuchElementException unavailable) {
+                outcome = "BLOCKED SAFELY";
+                reason = unavailable.getMessage();
+                if (unavailable instanceof SelfHealingLocatorAgent.RecoveryRejectedException rejected)
+                    reason += " Candidate evidence: " + rejected.decision().candidates();
+            }
+            if (target != null) {
+                target.click();
                 boolean correct = driver.getCurrentUrl().endsWith("/cart.html")
                         && driver.findElements(By.tagName("h1")).stream().anyMatch(e -> e.getText().equals("Cart fixture"));
                 if (decision != null) {
                     decision = agent.verifyOutcome(decision, correct);
-                    reason = decision.businessUpdate() + " Rule score: " + decision.matchConfidence()
-                            + "; " + decision.successRateLabel() + ". Score is not a calibrated probability.";
+                    reason = decision.businessUpdate() + " Candidate evidence: " + decision.candidates()
+                            + ". Rule scores are not calibrated probabilities.";
                 }
-                outcome = correct ? (decision == null ? "ORIGINAL WORKED" : "VERIFIED RECOVERY") : "FALSE HEAL";
-            } catch (NoSuchElementException unavailable) {
-                outcome = "BLOCKED SAFELY";
-                int matches = driver.findElements(By.cssSelector("[data-test='shopping-cart-link']")).size();
-                reason = !healing ? "The original locator was unavailable; baseline does not recover."
-                        : matches != 1 ? "Replacement must match exactly one element; found " + matches + "."
-                        : "The candidate failed availability or cart destination/role checks. No click was performed.";
+                outcome = correct ? (applied ? "VERIFIED RECOVERY" : "ORIGINAL WORKED")
+                        : applied ? "FALSE HEAL" : "BASELINE FAILED";
             }
-            screenshot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BASE64);
             String expected = fixture.equals("original.html") ? "ORIGINAL WORKED"
                     : (fixture.equals("changed-class.html") || fixture.equals("inventory.html")) && healing ? "VERIFIED RECOVERY"
                     : "BLOCKED SAFELY";
+            expectedMatched = outcome.equals(expected);
             Assert.assertEquals(outcome, expected, "Unexpected benchmark outcome for " + fixture);
+        } catch (org.openqa.selenium.WebDriverException error) {
+            outcome = "EXECUTION ERROR";
+            reason = error.getClass().getSimpleName() + ": " + error.getMessage();
+            throw error;
         } finally {
+            if (driver != null) {
+                try { screenshot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BASE64); }
+                catch (org.openqa.selenium.WebDriverException evidenceError) { reason += " Screenshot unavailable: " + evidenceError.getClass().getSimpleName(); }
+            }
             results.add(new Result(fixture, healing ? "Guarded recovery" : "Selenium baseline", outcome,
-                    reason, (System.nanoTime() - started) / 1_000_000, screenshot));
-            driver.quit();
+                    reason, (System.nanoTime() - started) / 1_000_000, screenshot, applied, expectedMatched));
+            if (driver != null) driver.quit();
         }
     }
 
     @AfterClass(alwaysRun = true)
     public void writeHtml() throws Exception {
-        long healed = results.stream().filter(r -> r.outcome.equals("VERIFIED RECOVERY")).count();
-        long falseHeals = results.stream().filter(r -> r.outcome.equals("FALSE HEAL")).count();
-        long applied = healed + falseHeals;
-        String precision = applied == 0 ? "Not measured" : String.format(java.util.Locale.ROOT, "%.1f%%", 100.0 * healed / applied);
+        var metrics = BenchmarkMetrics.summarize(results.stream().map(r ->
+                new BenchmarkMetrics.Attempt(r.mode.equals("Guarded recovery"), r.applied, r.outcome)).toList());
+        long healed = metrics.correct(), falseHeals = metrics.falseHeals(), applied = metrics.applied();
+        String precision = metrics.precision();
+        boolean complete = results.size() == cases().length && results.stream().allMatch(r -> r.expectedMatched);
         StringBuilder html = new StringBuilder("""
                 <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
                 <title>Shopping cart resilience benchmark</title><style>
@@ -99,14 +117,22 @@ public class LocatorBenchmarkTest {
                 <p>A controlled comparison of ordinary Selenium and reviewed replacement locators.</p>
                 <p>Verified recovery means the expected cart page opened. Finding a clickable element alone is insufficient.</p></header>
                 """);
-        html.append("<article class='alert'><h2>Decision summary</h2><p>").append(healed)
-                .append(" verified recoveries · ").append(falseHeals).append(" incorrect recoveries · precision ")
-                .append(precision).append("</p><p>Precision = correct recoveries ÷ all applied replacements. ")
+        html.append("<article class='alert'" + RunIdentity.attributes() + "><h2>Decision summary</h2><p>").append(healed)
+                .append(" verified recoveries · ").append(falseHeals).append(" incorrect recoveries · verified recovery rate ")
+                .append(precision).append("</p><p>Conservative verified-recovery rate = correct recoveries ÷ all applied replacements, including unverified execution failures. ")
                 .append("The wrong-target case tests the cart destination guard. Automatic reuse still requires business-outcome verification.</p>")
                 .append("<small>This is a small synthetic benchmark, not evidence of production accuracy. A passing test suite means labelled outcomes were reproduced.</small></article>");
         html.insert(html.indexOf("</article>"), "<div data-benchmark-metrics='1' data-correct='" + healed
-                + "' data-false='" + falseHeals + "' data-total='" + results.size() + "'></div>");
-        String advice = falseHeals > 0
+                + "' data-false='" + falseHeals + "' data-total='" + results.size() + "' data-applied='" + applied
+                + "' data-unverified='" + metrics.unverified() + "' data-errors='" + metrics.errors() + "'></div>");
+        html.insert(html.indexOf("</article>"), RunIdentity.card() + "<p><b>Benchmark completeness:</b> "
+                + (complete ? "All expected cases matched" : "INCOMPLETE OR FAILED: do not approve readiness")
+                + "; " + results.size() + "/" + cases().length + " executions recorded. Unverified applied repairs: " + metrics.unverified()
+                + "; execution errors: " + metrics.errors() + "; guarded abstentions: " + metrics.blocked()
+                + "; false-heal rate (all applied attempts): " + (applied == 0 ? "Not measured" : String.format(java.util.Locale.ROOT, "%.1f%%", 100.0 * falseHeals / applied)) + "</p>");
+        String advice = !complete || metrics.errors() > 0 || metrics.unverified() > 0
+                ? "Evidence is incomplete or failed. Investigate execution errors and unverified repairs before any readiness decision."
+                : falseHeals > 0
                 ? "Keep automatic reuse restricted. A replacement opened the wrong page; check its destination and role before clicking, then verify the expected page."
                 : applied == 0 ? "Recovery accuracy is not measured: no replacements were applied. Add recoverable changes before assessing readiness."
                 : "No incorrect recovery was observed in these cases. This small sample does not establish production safety; broaden the benchmark before rollout.";
@@ -124,7 +150,7 @@ public class LocatorBenchmarkTest {
         for (Result r : results) {
             html.append("<article><h2>").append(escape(r.scenario)).append(" · ").append(escape(r.mode))
                     .append("</h2><p><b>").append(escape(r.outcome)).append("</b></p><p>").append(escape(r.reason))
-                    .append("</p><small>Elapsed ").append(r.millis).append(" ms (navigation, lookup, action, verification and screenshot; excludes browser startup).</small>");
+                    .append("</p><small>Elapsed ").append(r.millis).append(" ms (navigation, lookup, action, verification and screenshot; includes browser startup).</small>");
             if (!r.screenshot.isEmpty()) html.append("<details><summary>See the browser evidence</summary><img alt='Final browser state' src='data:image/png;base64,").append(r.screenshot).append("'></details>");
             html.append("</article>");
         }

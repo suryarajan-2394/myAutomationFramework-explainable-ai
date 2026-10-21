@@ -40,8 +40,9 @@ public class CartTest extends BaseTest {
 		try {
 
 			explainedStep("Open cart", "Cart page is displayed", () -> homePage.clickOnCart(),
-					() -> Assert.assertTrue(new WebDriverWait(driver, Duration.ofSeconds(10)).until(d -> d.getCurrentUrl().contains("/cart.html")), "Cart URL was not reached"));
-			homePage.recordCartOutcome(true);
+					() -> cartPage.assertCartPage(URL));
+            support.explainable.ExplainableAiIntegration.record("Cart navigation verified", "Exact cart URL and page title",
+                    "Navigation verified; product and quantity checks still pending", support.explainable.ExplainableAiAgent.Outcome.PASS, 0);
 			extentTestThread.get().log(Status.PASS, "Cart Icon clicked successfully");
 		} catch (Throwable t) {
 			homePage.recordCartOutcome(false);
@@ -52,9 +53,11 @@ public class CartTest extends BaseTest {
 		try {
 
 			explainedStep("Validate cart product", "Configured product is present in cart", () -> cartPage.validateCartpage(testData.getTestData("3", "productName")));
-			extentTestThread.get().log(Status.PASS, "Product in Cart validated successfully");
+			homePage.recordCartOutcome(true);
+            extentTestThread.get().log(Status.PASS, "Product, quantity and absence of extra items verified");
 		} catch (Throwable t) {
-			extentTestThread.get().log(Status.FAIL, "Error in validating the product " + t.getMessage());
+			homePage.recordCartOutcome(false);
+            extentTestThread.get().log(Status.FAIL, "Error in validating the product " + t.getMessage());
 			throw t;
 		}
 		

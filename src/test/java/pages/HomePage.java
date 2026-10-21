@@ -60,6 +60,10 @@ public class HomePage extends BasePageClass{
 					List.of(new SelfHealingLocatorAgent.Candidate(CART_APPROVED, 0.90,
 							List.of("reviewed-data-test", "cart-link-role"))),
                         element -> support.explainable.CartRecoveryPolicy.accepts(element, driver.getCurrentUrl()));
+            } catch (SelfHealingLocatorAgent.RecoveryRejectedException rejected) {
+                ExplainableAiIntegration.candidateEvidence(rejected.decision());
+                ExplainableAiIntegration.repairEvent("Automatic repair blocked", rejected.getMessage(), cartRepairSource);
+                throw rejected;
             } catch (org.openqa.selenium.NoSuchElementException rejected) {
                 ExplainableAiIntegration.repairEvent("Attempt 1 failed; automatic repair blocked",
                         rejected.getMessage(), cartRepairSource);
@@ -67,6 +71,7 @@ public class HomePage extends BasePageClass{
             }
 			pendingCartDecision = resolved.decision();
 			if (resolved.decision() != null) {
+                ExplainableAiIntegration.candidateEvidence(resolved.decision());
                 ExplainableAiIntegration.repairEvent("Attempt 1: original locator failed",
                         resolved.decision().failureReason(), cartRepairSource);
                 ExplainableAiIntegration.repairEvent("Automatic runtime repair selected",
@@ -92,8 +97,8 @@ public class HomePage extends BasePageClass{
         var verified = cartRecovery.verifyOutcome(pendingCartDecision, succeeded);
         pendingCartDecision = null;
         ExplainableAiIntegration.repairEvent(succeeded ? "Attempt 2: passed after healing" : "Attempt 2: failed after healing",
-                verified.businessUpdate() + " This describes cart navigation, not a second complete test run.", cartRepairSource);
-        ExplainableAiIntegration.record("Verify cart recovery", "Expected cart page opened",
+                verified.businessUpdate() + " Business verification covers the complete cart contents; this is not a second complete test run.", cartRepairSource);
+        ExplainableAiIntegration.record("Verify cart recovery", "Correct cart page, product, quantity and no additional items verified",
                 verified.businessUpdate() + " " + verified.successRateLabel(),
                 succeeded ? ExplainableAiAgent.Outcome.PASS : ExplainableAiAgent.Outcome.FAIL, 0);
     }

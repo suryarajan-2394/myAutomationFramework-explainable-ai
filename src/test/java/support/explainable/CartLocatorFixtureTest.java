@@ -21,6 +21,8 @@ public class CartLocatorFixtureTest {
         previousSetting = System.getProperty("framework.healing.cart.enabled");
         System.setProperty("framework.healing.cart.enabled", "true");
         ChromeOptions options = new ChromeOptions();
+            String browserBinary = System.getProperty("framework.browser.binary");
+            if (browserBinary != null && !browserBinary.isBlank()) options.setBinary(browserBinary);
         options.addArguments("--headless=new");
         driver = new ChromeDriver(options);
         ExplainableAiIntegration.start("CartLocatorFixtureTest");
@@ -69,9 +71,13 @@ public class CartLocatorFixtureTest {
     @Test
     public void javascriptCartControlRecoversAndReportsBothAttempts() throws Exception {
         open("inventory.html");
+        String inventoryUrl = driver.getCurrentUrl();
         HomePage page = new HomePage(driver);
         page.clickOnCart();
         Assert.assertTrue(driver.getCurrentUrl().endsWith("/cart.html"));
+        pages.CartPage cart = new pages.CartPage(driver);
+        cart.assertCartPage(inventoryUrl);
+        cart.validateCartContents("Fixture product", 1);
         page.recordCartOutcome(true);
         Path directory = java.nio.file.Files.createTempDirectory("repair-evidence-");
         Path html = directory.resolve("explainable/explanation-fixture.html");
