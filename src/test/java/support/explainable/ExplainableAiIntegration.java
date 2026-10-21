@@ -41,6 +41,12 @@ public final class ExplainableAiIntegration {
         RepairTrace.add(stage, detail, source);
     }
 
+    public static void candidateEvidence(SelfHealingLocatorAgent.HealingDecision decision) {
+        for (var candidate : decision.candidates()) repairEvent("Candidate " + candidate.disposition(),
+                candidate.locator().display() + "; rule score=" + candidate.score() + "; signals=" + candidate.signals()
+                + "; observed=" + candidate.observation(), "Runtime candidate evaluation (no source rewrite)");
+    }
+
     private static ExplainableAiAgent.Run current() {
         ExplainableAiAgent.Run run = RUN.get();
         if (run == null) throw new IllegalStateException("Call ExplainableAiIntegration.start() in @BeforeMethod.");

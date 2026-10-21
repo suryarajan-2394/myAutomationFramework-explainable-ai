@@ -309,3 +309,45 @@ notifications; no Jenkins build or email was executed during implementation.
 After merging this pipeline PR, configure Pipeline script from SCM with branch
 main and script path Jenkinsfile, then Build Now. Download the current timestamped
 explanation HTML from build artifacts for the combined stakeholder overview.
+
+### Verified recovery evidence increment (21 October 2026)
+
+Continue using one command: `mvn -Pstakeholder-report test`.
+
+* The benchmark records replacement application before click and verification.
+  Applied repairs that end in execution errors remain in the conservative verified
+  recovery-rate denominator. False heals, unverified applied repairs, execution
+  errors, guarded abstentions and incomplete/failed cases are reported separately.
+  An original-locator failure is not counted as a false heal. Chrome startup errors
+  are now recorded as execution errors rather than silently missing executions.
+* Live recovery is credited only after the exact cart URL and Your Cart title,
+  configured product, quantity=1 and absence of extra product rows are verified.
+  Navigation success is logged separately while business verification is pending.
+* Every proposed candidate retains its locator, rule score, matching signals,
+  selection/rejection reason and probe result. Lower-ranked candidates that were
+  not examined are explicitly marked NOT PROBED. Rejected recovery retains this
+  evidence in the stakeholder repair history; original failures remain visible.
+* Benchmark and live reports must have the same process run ID and code revision.
+  Old/legacy reports do not silently supply current metrics. The default identity
+  is one UUID per Maven test JVM plus Git HEAD (with a dirty-working-tree label).
+  Unknown Git provenance is explicitly labelled; matching IDs alone do not prove
+  revision verification when Git is unavailable. Prefer the single stakeholder
+  invocation; separate commands intentionally do not share benchmark evidence.
+  Advanced callers can provide matching `framework.reporting.runId` and
+  `framework.reporting.commit` properties, taking responsibility for provenance.
+
+Optional CI settings: `-Dframework.browser.headless=true` for the live Chrome test
+and `-Dframework.browser.binary=/path/to/chrome` for a provisioned browser. The
+fixture benchmark remains headless. No browser sandbox settings are disabled by
+the repository. Timestamped HTML remains primary; JSON remains opt-in.
+
+Run fast regression checks without Chrome or the live site:
+
+```powershell
+mvn "-Dtest=RecoveryEvidenceTest,CandidateAuditTest,BenchmarkMetricsTest,BenchmarkSummaryTest,CartRecoveryPolicyTest,RepairTraceTest,CartPageEvidenceTest" test
+```
+
+The benchmark still uses eight controlled scenarios rather than a production
+accuracy sample. LIME, ViT, Healenium comparison and AI test generation remain
+future research. Safety checks and business assertions are never weakened to
+raise a reported score.

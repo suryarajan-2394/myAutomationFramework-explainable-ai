@@ -47,11 +47,24 @@ public final class SelfHealingLocatorAgent {
     public record HealingDecision(String elementName, Locator failedLocator, Locator replacementLocator,
                                   String failureReason, double matchConfidence, int successfulRuns,
                                   int validationRuns, double replacementSuccessRate, boolean appliedThisRun,
-                                  boolean promotedForFutureRuns, String businessUpdate) {
+                                  boolean promotedForFutureRuns, String businessUpdate, List<CandidateAudit> candidates) {
+        public HealingDecision { candidates = List.copyOf(candidates); }
         public String successRateLabel() {
             return validationRuns == 0 ? "Not yet measured" : String.format(Locale.ROOT, "%.1f%% (%d/%d validated runs)",
                     replacementSuccessRate * 100, successfulRuns, validationRuns);
         }
+    }
+
+    public record CandidateAudit(Locator locator, double score, List<String> signals, String disposition, String observation) {
+        public CandidateAudit { signals = List.copyOf(signals); }
+    }
+    public static final class RecoveryRejectedException extends NoSuchElementException {
+        private final HealingDecision decision;
+        RecoveryRejectedException(HealingDecision decision, Throwable cause) {
+            super(decision.failureReason() + "; no safe reviewed replacement; no click performed", cause);
+            this.decision = decision;
+        }
+        public HealingDecision decision() { return decision; }
     }
 
     public record ResolvedElement(WebElement element, HealingDecision decision) { }
@@ -90,15 +103,27 @@ public final class SelfHealingLocatorAgent {
      */
     public HealingDecision recover(String elementName, Locator failedLocator, String failureReason,
                                    List<Candidate> candidates, LocatorProbe probe) {
-        Candidate winner = candidates.stream()
-                .sorted(Comparator.comparingDouble(this::scoreCandidate).reversed())
-                .filter(candidate -> scoreCandidate(candidate) >= confidenceThreshold)
-                .filter(candidate -> probe.inspect(candidate.locator()).usable())
-                .findFirst().orElse(null);
+        Candidate winner = null;
+        List<CandidateAudit> audits = new ArrayList<>();
+        for (Candidate candidate : candidates.stream().sorted(Comparator.comparingDouble(this::scoreCandidate).reversed()).toList()) {
+            double score = scoreCandidate(candidate);
+            if (score < confidenceThreshold) {
+                audits.add(new CandidateAudit(candidate.locator(), score, candidate.matchingSignals(), "REJECTED", "Below rule-score threshold " + confidenceThreshold));
+                continue;
+            }
+            if (winner != null) {
+                audits.add(new CandidateAudit(candidate.locator(), score, candidate.matchingSignals(), "NOT PROBED", "A higher-ranked safe candidate was already selected"));
+                continue;
+            }
+            ProbeResult observed = probe.inspect(candidate.locator());
+            audits.add(new CandidateAudit(candidate.locator(), score, candidate.matchingSignals(),
+                    observed.usable() ? "SELECTED" : "REJECTED", observed.observed()));
+            if (observed.usable()) winner = candidate;
+        }
 
         if (winner == null) {
             return new HealingDecision(elementName, failedLocator, null, failureReason, 0, 0, 0, 0,
-                    false, false, "The journey remains blocked because no safe replacement element was confirmed.");
+                    false, false, "The journey remains blocked because no safe replacement element was confirmed.", audits);
         }
 
         double score = scoreCandidate(winner);
@@ -108,7 +133,7 @@ public final class SelfHealingLocatorAgent {
 
         return new HealingDecision(elementName, failedLocator, winner.locator(), failureReason, score,
                 reliability.successfulRuns, reliability.validationRuns, reliability.rate(), true, promoted,
-                "A replacement was selected. The business outcome still needs verification.");
+                "A replacement was selected. The business outcome still needs verification.", audits);
     }
 
     /** Record only after the caller has checked the intended business postcondition. */
@@ -124,7 +149,7 @@ public final class SelfHealingLocatorAgent {
                 decision.failureReason(), decision.matchConfidence(), history.successfulRuns, history.validationRuns,
                 history.rate(), true, promoted, succeeded
                 ? "The expected business outcome was verified after using the replacement."
-                : "The replacement was usable, but the expected business outcome failed. Investigate before reuse.");
+                : "The replacement was usable, but the expected business outcome failed. Investigate before reuse.", decision.candidates());
         verifiedDecisions.add(verified);
         return verified;
     }
@@ -166,17 +191,20 @@ public final class SelfHealingLocatorAgent {
                         "Candidate must resolve to exactly one element; found " + matches.size());
                 for (WebElement match : matches) {
                     try {
-                        if (match.isDisplayed() && match.isEnabled() && safetyRule.test(match))
-                            return new ProbeResult(true, true, "Candidate is visible and enabled.");
-                    } catch (WebDriverException ignored) { /* candidate did not remain usable */ }
+                        if (!match.isDisplayed()) return new ProbeResult(false, match.isEnabled(), "Rejected: hidden control");
+                        if (!match.isEnabled()) return new ProbeResult(true, false, "Rejected: disabled control");
+                        if (!safetyRule.test(match)) return new ProbeResult(false, false, "Rejected: destination or role safety rule");
+                        return new ProbeResult(true, true, "Unique, visible, enabled; action-specific safety rule passed");
+                    } catch (WebDriverException error) {
+                        return new ProbeResult(false, false, "Probe error: " + error.getClass().getSimpleName());
+                    }
                 }
                 return new ProbeResult(false, false, "Candidate not visible/enabled on the current page.");
             };
             List<Candidate> allCandidates = new ArrayList<>(candidates);
             if (discover) allCandidates.addAll(discoverCandidates(driver, elementName));
             HealingDecision decision = recover(elementName, primary, rootMessage(failure), allCandidates, seleniumProbe);
-            if (!decision.appliedThisRun()) throw new NoSuchElementException(
-                    rootMessage(failure) + "; automatic recovery rejected all reviewed candidates; no click was performed.", failure);
+            if (!decision.appliedThisRun()) throw new RecoveryRejectedException(decision, failure);
             List<WebElement> replacements = driver.findElements(toBy(decision.replacementLocator()));
             if (replacements.size() != 1 || !replacements.get(0).isDisplayed()
                     || !replacements.get(0).isEnabled() || !safetyRule.test(replacements.get(0)))
