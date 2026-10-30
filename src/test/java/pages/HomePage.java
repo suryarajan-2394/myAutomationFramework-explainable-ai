@@ -33,19 +33,12 @@ public class HomePage extends BasePageClass{
 	@FindBy(xpath = "//a[text()='Logout']")
 	WebElement logOutButton;
 	
-	public void selectProduct(String productName) {
-		String removeFromCartXpath = "//div[text()='%s']/following::button[text()='Remove']";
-		List<WebElement> removeButton = driver.findElements(By.xpath("//button[text()='Remove']"));
-		if(removeButton.size() != 0) {
-			WebElement removeFromCart = dynamicXpath(removeFromCartXpath, productName);
-			removeFromCart.click();
-		}
-		String productSelectionXpath = "//div[text()='%s']/following::button[text()='Add to cart']";
-		WebElement productSelection= dynamicXpath(productSelectionXpath, productName);
-		productSelection.click();
-		driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
-	}
-	
+    public void selectProduct(String productName) {
+        new org.openqa.selenium.support.ui.WebDriverWait(driver, Duration.ofSeconds(10))
+                .until(d -> !d.findElements(By.cssSelector(".inventory_item")).isEmpty());
+        ProductSelection.select(driver, productName);
+    }
+
 	public void clickOnCart() {
 		pendingCartDecision = null;
 		if (Boolean.getBoolean("framework.healing.cart.enabled")) {

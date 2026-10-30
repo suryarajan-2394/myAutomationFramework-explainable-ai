@@ -26,9 +26,8 @@ public class LocatorBenchmarkTest {
     @DataProvider(name = "cases")
     public Object[][] cases() {
         List<Object[]> cases = new ArrayList<>();
-        for (String file : List.of("original.html", "changed-class.html", "inventory.html", "duplicate.html",
-                "missing.html", "hidden.html", "disabled.html", "wrong-target.html")) {
-            for (boolean healing : List.of(false, true)) cases.add(new Object[]{file, healing});
+        for (var scenario : BenchmarkScenarios.ALL) {
+            for (boolean healing : List.of(false, true)) cases.add(new Object[]{scenario.file(), healing});
         }
         return cases.toArray(Object[][]::new);
     }
@@ -80,9 +79,8 @@ public class LocatorBenchmarkTest {
                 outcome = correct ? (applied ? "VERIFIED RECOVERY" : "ORIGINAL WORKED")
                         : applied ? "FALSE HEAL" : "BASELINE FAILED";
             }
-            String expected = fixture.equals("original.html") ? "ORIGINAL WORKED"
-                    : (fixture.equals("changed-class.html") || fixture.equals("inventory.html")) && healing ? "VERIFIED RECOVERY"
-                    : "BLOCKED SAFELY";
+            String expected = healing ? BenchmarkScenarios.find(fixture).guardedOutcome()
+                    : fixture.equals("original.html") ? "ORIGINAL WORKED" : "BLOCKED SAFELY";
             expectedMatched = outcome.equals(expected);
             Assert.assertEquals(outcome, expected, "Unexpected benchmark outcome for " + fixture);
         } catch (org.openqa.selenium.WebDriverException error) {
@@ -103,7 +101,7 @@ public class LocatorBenchmarkTest {
     @AfterClass(alwaysRun = true)
     public void writeHtml() throws Exception {
         var metrics = BenchmarkMetrics.summarize(results.stream().map(r ->
-                new BenchmarkMetrics.Attempt(r.mode.equals("Guarded recovery"), r.applied, r.outcome)).toList());
+                new BenchmarkMetrics.Attempt(r.mode.equals("Guarded recovery"), r.applied, r.outcome, BenchmarkScenarios.find(r.scenario).recoverable())).toList());
         long healed = metrics.correct(), falseHeals = metrics.falseHeals(), applied = metrics.applied();
         String precision = metrics.precision();
         boolean complete = results.size() == cases().length && results.stream().allMatch(r -> r.expectedMatched);
@@ -130,6 +128,10 @@ public class LocatorBenchmarkTest {
                 + "; " + results.size() + "/" + cases().length + " executions recorded. Unverified applied repairs: " + metrics.unverified()
                 + "; execution errors: " + metrics.errors() + "; guarded abstentions: " + metrics.blocked()
                 + "; false-heal rate (all applied attempts): " + (applied == 0 ? "Not measured" : String.format(java.util.Locale.ROOT, "%.1f%%", 100.0 * falseHeals / applied)) + "</p>");
+        html.insert(html.indexOf("</article>"), "<div data-eligible='" + metrics.eligible() + "' data-recovered='" + metrics.eligibleRecovered()
+                + "' data-missed='" + metrics.missed() + "'></div><p><b>Recovery coverage:</b> " + metrics.coverage()
+                + " (" + metrics.eligibleRecovered() + "/" + metrics.eligible() + " eligible failures recovered); missed: " + metrics.missed() + "</p>"
+                + ScenarioSuggestions.html(metrics));
         String advice = !complete || metrics.errors() > 0 || metrics.unverified() > 0
                 ? "Evidence is incomplete or failed. Investigate execution errors and unverified repairs before any readiness decision."
                 : falseHeals > 0
@@ -149,7 +151,8 @@ public class LocatorBenchmarkTest {
         html.insert(endSummary, guidance);
         for (Result r : results) {
             html.append("<article><h2>").append(escape(r.scenario)).append(" · ").append(escape(r.mode))
-                    .append("</h2><p><b>").append(escape(r.outcome)).append("</b></p><p>").append(escape(r.reason))
+                    .append("</h2><p>Ground truth: ").append(BenchmarkScenarios.find(r.scenario).recoverable() ? "Recoverable original-locator failure" : "Original unchanged or unsafe/unavailable replacement")
+                    .append("</p><p><b>").append(escape(r.outcome)).append("</b></p><p>").append(escape(r.reason))
                     .append("</p><small>Elapsed ").append(r.millis).append(" ms (navigation, lookup, action, verification and screenshot; includes browser startup).</small>");
             if (!r.screenshot.isEmpty()) html.append("<details><summary>See the browser evidence</summary><img alt='Final browser state' src='data:image/png;base64,").append(r.screenshot).append("'></details>");
             html.append("</article>");

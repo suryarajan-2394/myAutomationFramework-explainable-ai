@@ -351,3 +351,42 @@ The benchmark still uses eight controlled scenarios rather than a production
 accuracy sample. LIME, ViT, Healenium comparison and AI test generation remain
 future research. Safety checks and business assertions are never weakened to
 raise a reported score.
+
+### Product scoping and labelled recovery coverage (30 October 2026)
+
+`HomePage.selectProduct` now finds one inventory card by exact product name, then
+uses only that card's button. Missing/duplicate product cards, missing/ambiguous
+buttons, unavailable controls and unexpected action text fail without touching a
+neighbouring product. An already-selected product is left selected. Inventory
+readiness uses an explicit wait; the former global Remove-button precheck and
+product-action implicit-wait assignment are removed. Runtime improvements must
+still be measured on the actual browser/site.
+
+The locator benchmark now has 13 labelled scenarios, each run in baseline and
+guarded mode (26 executions). Labels are authored in BenchmarkScenarios,
+independently from observed decisions. Recovery coverage is correctly recovered
+eligible original-locator failures divided by all eligible failures in guarded
+mode. Eligible cases ending in refusal or execution error remain missed cases.
+Original-unchanged cases and unsafe replacements are excluded from this denominator.
+The previous all-applied verified recovery rate and incorrect-recovery reporting
+remain alongside coverage. The combined explanation report includes coverage.
+
+Two deliberate characterization cases prevent misleading perfect scores:
+* changed-data-test.html is recoverable in principle, but the current reviewed
+  fallback cannot identify it. It should be recorded as a missed eligible case.
+* script-redirect.html has a plausible href but JavaScript opens the wrong page.
+  The current static guard cannot predict this; business verification must record
+  FALSE HEAL. A passing characterization test confirms that this unsafe outcome
+  was detected; it does not approve production readiness. The case remains in
+  the benchmark until the policy is improved and its independent expectation reviewed.
+
+ScenarioSuggestions provides rule-based, evidence-triggered proposals for missing
+scenario families and expected behaviours. They appear in the benchmark and the
+combined stakeholder report, require human review, and never generate or alter
+executable tests. No LLM/AI generator has been added in this increment.
+
+Run `mvn -Pstakeholder-report test` as before. For fast checks, add
+`ProductSelectionTest` and `ScenarioSuggestionsTest` to the existing unit-test
+command. Browser fixture regressions also cover a selected neighbouring product,
+repeated selection, and a missing intended action. Existing CI report archiving
+continues to collect the timestamped HTML.
