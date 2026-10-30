@@ -37,6 +37,10 @@ final class BenchmarkSummary {
                         .append(wrong).append("</strong><p>Target: zero observed</p></div><div class='benchmark-box'><h3>Evidence size</h3><strong>")
                         .append(metrics.group(3)).append("</strong><p>Controlled executions, not independent production samples</p></div></div>");
             }
+            var eligibility = Pattern.compile("data-eligible='(\\d+)' data-recovered='(\\d+)' data-missed='(\\d+)'").matcher(source);
+            if (eligibility.find()) cards.append("<div class='benchmark-box'><h3>Eligible locator failures recovered</h3><p>")
+                    .append(eligibility.group(2)).append(" / ").append(eligibility.group(1)).append("; missed: ")
+                    .append(eligibility.group(3)).append("</p><p>Eligibility is labelled independently of what the healer selected.</p></div>");
             cards.append("<div class='benchmark-box'><h3>Proposed acceptance targets</h3><ul>")
                     .append("<li>Correct recovery precision: at least 95% on a broader labelled benchmark.</li>")
                     .append("<li>Incorrect recoveries: zero observed in the acceptance suite.</li>")

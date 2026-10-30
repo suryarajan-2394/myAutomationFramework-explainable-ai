@@ -95,4 +95,17 @@ public class CartLocatorFixtureTest {
             java.nio.file.Files.deleteIfExists(directory);
         }
     }
+    @Test public void productSelectionDoesNotTouchAnotherSelectedProduct() {
+        open("products.html");
+        HomePage home = new HomePage(driver);
+        home.selectProduct("Wanted");
+        home.selectProduct("Wanted");
+        Assert.assertEquals(driver.findElement(org.openqa.selenium.By.id("wanted")).getAttribute("data-count"), "1");
+        Assert.assertNull(driver.findElement(org.openqa.selenium.By.id("other")).getAttribute("data-clicked"));
+    }
+    @Test public void missingProductActionNeverClicksTheNextProduct() {
+        open("product-missing-button.html");
+        Assert.expectThrows(NoSuchElementException.class, () -> new HomePage(driver).selectProduct("Wanted"));
+        Assert.assertNull(driver.findElement(org.openqa.selenium.By.id("other")).getAttribute("data-clicked"));
+    }
 }

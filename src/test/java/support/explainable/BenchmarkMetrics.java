@@ -5,8 +5,11 @@ import java.util.Locale;
 
 /** Applied replacements remain in the denominator even if their execution/verification raises an error. */
 final class BenchmarkMetrics {
-    record Attempt(boolean healingMode, boolean replacementApplied, String outcome) { }
-    record Summary(long applied, long correct, long falseHeals, long unverified, long errors, long blocked) {
+    record Attempt(boolean healingMode, boolean replacementApplied, String outcome, boolean recoverable) {
+        Attempt(boolean healingMode, boolean replacementApplied, String outcome) { this(healingMode, replacementApplied, outcome, false); }
+    }
+    record Summary(long applied, long correct, long falseHeals, long unverified, long errors, long blocked, long eligible, long eligibleRecovered, long missed) {
+        String coverage() { return eligible == 0 ? "Not measured" : String.format(Locale.ROOT, "%.1f%%", 100.0 * eligibleRecovered / eligible); }
         String precision() { return applied == 0 ? "Not measured" : String.format(Locale.ROOT, "%.1f%%", 100.0 * correct / applied); }
     }
     static Summary summarize(List<Attempt> attempts) {
@@ -15,6 +18,9 @@ final class BenchmarkMetrics {
         long falseHeals = attempts.stream().filter(a -> a.healingMode && a.replacementApplied && a.outcome.equals("FALSE HEAL")).count();
         return new Summary(applied, correct, falseHeals, applied - correct - falseHeals,
                 attempts.stream().filter(a -> a.outcome.equals("EXECUTION ERROR")).count(),
-                attempts.stream().filter(a -> a.healingMode && !a.replacementApplied && a.outcome.equals("BLOCKED SAFELY")).count());
+                attempts.stream().filter(a -> a.healingMode && !a.replacementApplied && a.outcome.equals("BLOCKED SAFELY")).count(),
+                attempts.stream().filter(a -> a.healingMode && a.recoverable).count(),
+                attempts.stream().filter(a -> a.healingMode && a.recoverable && a.outcome.equals("VERIFIED RECOVERY")).count(),
+                attempts.stream().filter(a -> a.healingMode && a.recoverable && !a.outcome.equals("VERIFIED RECOVERY")).count());
     }
 }

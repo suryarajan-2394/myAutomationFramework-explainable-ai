@@ -23,4 +23,14 @@ public class BenchmarkMetricsTest {
         Assert.assertEquals(summary.blocked(), 1L);
         Assert.assertEquals(summary.falseHeals(), 0L);
     }
+    @Test public void coverageIncludesBlockedAndErroredEligibleCases() {
+        var s = BenchmarkMetrics.summarize(List.of(
+            new BenchmarkMetrics.Attempt(true,true,"VERIFIED RECOVERY",true),
+            new BenchmarkMetrics.Attempt(true,false,"BLOCKED SAFELY",true),
+            new BenchmarkMetrics.Attempt(true,false,"EXECUTION ERROR",true),
+            new BenchmarkMetrics.Attempt(true,false,"BLOCKED SAFELY",false),
+            new BenchmarkMetrics.Attempt(false,false,"BLOCKED SAFELY",true)));
+        Assert.assertEquals(s.eligible(),3L); Assert.assertEquals(s.missed(),2L);
+        Assert.assertEquals(s.coverage(),"33.3%");
+    }
 }

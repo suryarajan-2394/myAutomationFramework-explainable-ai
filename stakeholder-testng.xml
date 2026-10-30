@@ -6,6 +6,8 @@
         <class name="support.explainable.BenchmarkMetricsTest"/>
         <class name="support.explainable.CandidateAuditTest"/>
         <class name="pages.CartPageEvidenceTest"/>
+        <class name="pages.ProductSelectionTest"/>
+        <class name="support.explainable.ScenarioSuggestionsTest"/>
         <class name="support.explainable.RepairTraceTest"/>
         <class name="support.explainable.CartRecoveryPolicyTest"/>
         <class name="support.explainable.BenchmarkSummaryTest"/>
